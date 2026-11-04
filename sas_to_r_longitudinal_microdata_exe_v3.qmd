@@ -38,10 +38,10 @@ A SAS DATA step processes observations sequentially. A `RETAIN` statement can ca
 
 In R, the same result is usually expressed by making the order explicit and then using one of these approaches:
 
--   **data.table:** `setorder()`, `by = id`, `shift()`, `cum*()` functions, and grouped expressions.
--   **dplyr:** `arrange()`, `group_by(id)`, `lag()`, `lead()`, `cum*()` functions, and grouped expressions.
--   **base R:** `order()`, `ave()`, `split()`/`lapply()`, `Reduce()`, `rle()`, `diff()`, and explicit `for` loops when state matters.
--   **Either package:** an explicit stateful loop or a purpose-built function when the logic genuinely depends on a sequential state machine.
+- **data.table:** `setorder()`, `by = id`, `shift()`, `cum*()` functions, and grouped expressions.
+- **dplyr:** `arrange()`, `group_by(id)`, `lag()`, `lead()`, `cum*()` functions, and grouped expressions.
+- **base R:** `order()`, `ave()`, `split()`/`lapply()`, `Reduce()`, `rle()`, `diff()`, and explicit `for` loops when state matters.
+- **Either package:** an explicit stateful loop or a purpose-built function when the logic genuinely depends on a sequential state machine.
 
 Most longitudinal tasks do not need a row-by-row loop in R. Grouped vector operations are generally clearer and faster. Base R can express all the same operations, though sometimes with more boilerplate.
 
@@ -117,7 +117,7 @@ DT[, `:=`(
   last_record  = seq_len(.N) == .N
 ), by = id]
 
-DT
+DT[, .(id, year, first_record, last_record)]
 ```
 
 To mark first and last rows within each `id`-`year` group (usually meaningful only if there are additional records within a year):
@@ -168,8 +168,8 @@ df |>
 
 Base R has no `row_number()`/`.N` inside a `by=`. Two common idioms:
 
--   **`ave()`** applies a function per group and returns a vector aligned with the rows. `ave(seq_len(n), id, FUN = seq_along)` gives the within-group position.
--   **`split()` + `lapply()` + `unsplit()` / `do.call(rbind, ...)`** gives explicit group handling.
+- **`ave()`** applies a function per group and returns a vector aligned with the rows. `ave(seq_len(n), id, FUN = seq_along)` gives the within-group position.
+- **`split()` + `lapply()` + `unsplit()` / `do.call(rbind, ...)`** gives explicit group handling.
 
 ```{r}
 #| label: first-last-base
@@ -279,23 +279,23 @@ DT
 ## Alternative with `rowid()` for runs of identical values
 
 ```{r}
-DT[, counter := rowid(gruppo)]
+DT[, counter := rowid(gruppo)][]
 ```
 
 ... or multiple grouping variables:
 
 ```{r}
-DT[, counter := rowid(gruppo, anno)]
+DT[, counter := rowid(gruppo, anno)][]
 ```
 
 ## Counter for all dataset
 
 ```{r}
-DT[, id := .I]
+DT[, id := .I][]
 ```
 
 ```{r}
-DT[, id := seq_len(.N)]
+DT[, id := seq_len(.N)][]
 ```
 
 ```{r}
@@ -328,6 +328,32 @@ if you want only a line per group:
 ```{r}
 DT[, .(max_var = max(var)), by = id][]
 ```
+
+These two last expressions seem similar, but they differ since the first one uses := that adds or updates columns in the original table, so the number of rows remains unchanged.
+
+Consider this:
+
+`DT[, max_var := max(var), by = id]`\`
+
+What happens?
+
+- `by = id` divides the data into groups.
+
+- `max(var)` calculates the maximum within each group.
+
+- `:=` assigns that maximum to every row belonging to that group.
+
+With `DT[, .(max_var = max(var)), by = id]`
+
+What happens?
+
+- `by = id` divides the data into groups.
+
+- `max(var)` calculates the maximum within each group.
+
+- `.()` returns a result for each group.
+
+- `data.table` combines those results into a new table.
 
 # `RETAIN`: carry a value across observations
 
@@ -714,23 +740,35 @@ This `data.table` syntax in R creates a new column called `first_observed_income
 
 Here is the step-by-step breakdown of how it works:
 
--   **`DT[, ... , by = id]`**: This groups the data by the `id` column. The code inside the braces `{}` is executed separately for each unique ID.
+- **`DT[, ... , by = id]`**: This groups the data by the `id` column. The code inside the braces `{}` is executed separately for each unique ID.
 
--   **`first_observed_income :=`**: The `:=` operator adds (or updates) the column in-place without copying the entire data frame in memory.
+- **`first_observed_income :=`**: The `:=` operator adds (or updates) the column in-place without copying the entire data frame in memory.
 
--   **`x <- income[!is.na(income)]`**: Inside the group, it filters out all `NA` values from the `income` column and assigns the remaining valid incomes to a temporary variable `x`.
+- **`x <- income[!is.na(income)]`**: Inside the group, it filters out all `NA` values from the `income` column and assigns the remaining valid incomes to a temporary variable `x`.
 
--   **`if (length(x)) x[1L] else NA_real_`**:
+- **`if (length(x)) x[1L] else NA_real_`**:
 
-    -   If `x` contains at least one valid income (`length(x) > 0`), it extracts the first one (`x[1L]`).
+  - If `x` contains at least one valid income (`length(x) > 0`), it extracts the first one (`x[1L]`).
 
-    -   If all income values for that ID are `NA` (meaning `length(x)` is 0), it returns a missing value typed specifically for numeric data (`NA_real_`).
+  - If all income values for that ID are `NA` (meaning `length(x)` is 0), it returns a missing value typed specifically for numeric data (`NA_real_`).
 
 Much easier:
 
 ```{r}
 DT[, first_observed_income := fcoalesce(as.numeric(income))[1L], by = id]
 DT[, .(id, year, income, first_observed_income)]
+```
+
+This piece of code uses the `{ in j`\`. In `data.table`, `{}` allows you to write a sequence of R expressions inside `j`.
+
+```{r}
+DT[, result := {
+  a <- mean(income, na.rm = TRUE)
+  b <- max(income, na.rm = TRUE)
+  a + b
+}, by = id]
+
+DT
 ```
 
 dplyr:
@@ -773,7 +811,171 @@ DT[, first_year_B := {
   y <- year[status == "B"]
   if (length(y)) min(y) else NA_integer_
 }, by = id]
+
+DT[, .(id, year, status, first_year_B)]
 ```
+
+It combines three concepts:
+
+- `by = id`: performs the calculation separately for each individual.
+
+- `{}`: allows multiple R expressions inside `j`.
+
+- `:=`: creates or updates a column in the original data.table.
+
+Step 1: Select the years when status is B
+
+```         
+y <- year[status == "B"]
+```
+
+This is a logical filter.
+
+For example, suppose an individual has:
+
+| year | status |
+|------|--------|
+| 2019 | A      |
+| 2020 | B      |
+| 2021 | A      |
+| 2022 | B      |
+
+The condition:
+
+```         
+status == "B"
+```
+
+returns:
+
+```         
+FALSE TRUE FALSE TRUE
+```
+
+Consequently:
+
+```         
+y <- year[status == "B"]
+```
+
+returns:
+
+```         
+y
+# 2020 2022
+```
+
+Step 2: Check whether any B observations exist
+
+```         
+if (length(y))
+```
+
+Checks whether the vector `y` contains at least one observation.
+
+- If `length(y) > 0`, calculate the minimum year.
+
+- If `length(y) == 0`, return a missing value.
+
+Step 3: Find the earliest year
+
+```         
+min(y)
+```
+
+Returns the smallest year.
+
+For example:
+
+```         
+min(c(2020, 2022))
+# 2020
+```
+
+Step 4: Handle individuals without status B
+
+```         
+else NA_integer_
+```
+
+If an individual never has status B, the result is `NA_integer_`.
+
+This is a missing value of integer type.
+
+### 3. Complete example
+
+Consider this dataset:
+
+``` R
+DT <- data.table(
+  id = c(1, 1, 1, 2, 2, 2, 3, 3),
+  year = c(2019, 2020, 2021, 2019, 2020, 2021, 2020, 2021),
+  status = c("A", "B", "A", "A", "A", "B", "A", "A")
+)
+```
+
+Execute:
+
+```         
+DT[, first_year_B := {
+  y <- year[status == "B"]
+  if (length(y)) min(y) else NA_integer_
+}, by = id]
+```
+
+Result:
+
+| id  | year | status | first_year_B |
+|-----|------|--------|--------------|
+| 1   | 2019 | A      | 2020         |
+| 1   | 2020 | B      | 2020         |
+| 1   | 2021 | A      | 2020         |
+| 2   | 2019 | A      | 2021         |
+| 2   | 2020 | A      | 2021         |
+| 2   | 2021 | B      | 2021         |
+| 3   | 2020 | A      | NA           |
+| 3   | 2021 | A      | NA           |
+
+Notice that the result is repeated across all observations belonging to the same individual.
+
+### 4. Why use `min(y)` instead of `y[1L]`?
+
+This is an important distinction.
+
+- `y[1L]` returns the first year in the current row order.
+
+- `min(y)` returns the chronologically earliest year, regardless of row order.
+
+For example:
+
+```         
+y <- c(2022L, 2020L, 2021L)
+
+y[1L]
+# 2022
+
+min(y)
+# 2020
+```
+
+If your data are not sorted chronologically, `min(y)` is safer.
+
+### 5. A more concise alternative
+
+You could also write:
+
+```         
+DT[, first_year_B := {
+  y <- year[status == "B"]
+  if (any(status == "B")) min(y) else NA_integer_
+}, by = id]
+```
+
+Both approaches work, but the original code is perfectly valid.
+
+**Key takeaway**: the code performs a grouped conditional calculation: select the years corresponding to status B, find the earliest one, and assign it to every observation of the same individual. If no B exists, assign `NA`.
+
+`Dplyr`\` version
 
 ```{r}
 #| label: first-year-B-dplyr
@@ -786,6 +988,7 @@ df |>
     }
   ) |>
   ungroup()
+
 ```
 
 base R:
@@ -1090,6 +1293,7 @@ For each individual, identify whether status ever changes:
 ```{r}
 #| label: ever-changed-dt
 DT[, ever_changed_status := uniqueN(status, na.rm = TRUE) > 1L, by = id]
+DT[, c("id", "year", "status", "ever_changed_status")]
 ```
 
 ```{r}
@@ -1128,6 +1332,8 @@ DT[, baseline_income := {
   if (length(x)) x[1L] else NA_real_
 }, by = id]
 DT[, change_from_baseline := income - baseline_income]
+
+DT[, .(id, year, income, baseline_income, change_from_baseline)]
 ```
 
 dplyr:
@@ -1195,7 +1401,15 @@ If all values for an individual are missing, `mean(..., na.rm = TRUE)` returns `
 
 ```{r}
 #| label: rank-dt
-DT[, income_rank := frank(income, ties.method = "average"), by = id]
+
+DT[, income_rank := frank(
+  income,
+  ties.method = "average",
+  na.last = "keep"
+), by = id]
+
+
+DT[, .(id, year, income, income_rank)]
 ```
 
 ```{r}
@@ -1242,12 +1456,93 @@ data.table:
 ```{r}
 #| label: locf-dt
 #DT[, carried_status := nafill(status, type = "locf"), by = id]
-DT[, carried_status := status[which(!is.na(status))[cumsum(!is.na(status))]], by = id]
-DT[, carried_status := status[1] , by = .(id, cumsum(!is.na(status)))]
+setorder(DT, id, year)
 
+DT[, carried_status := {
+  codes <- match(status, unique(status[!is.na(status)]))
+  codes <- nafill(codes, type = "locf")
+  unique(status[!is.na(status)])[codes]
+}, by = id]
+
+DT[, .(id, year, status, carried_status)]
 ```
 
 For character data, support for `nafill()` depends on the data.table version and type. A broadly applicable alternative is to use `zoo::na.locf()` (with `na.rm = FALSE`) or an explicit grouped fill operation.
+
+EXPLANATION OF THE CODE:
+
+### 1. Create numeric codes
+
+```         
+codes <- match(status, unique(status[!is.na(status)]))
+```
+
+Suppose `status` contains:
+
+| status |     |
+|--------|-----|
+| A      | 1   |
+| A      | 1   |
+| NA     | NA  |
+| B      | 2   |
+| NA     | NA  |
+| C      | 3   |
+
+- `status[!is.na(status)]` removes missing values.
+
+- `unique()` keeps each distinct status once: `A`, `B`, `C`.
+
+- `match()` assigns each observation its position in that vector.
+
+So `codes` becomes:
+
+```         
+1 1 NA 2 NA 3
+```
+
+### 2. Carry forward the numeric codes
+
+```         
+codes <- nafill(codes, type = "locf")
+```
+
+`nafill()` fills each missing value with the preceding non-missing value.
+
+Result:
+
+```         
+1 1 1 2 2 3
+```
+
+### 3. Restore the original status values
+
+```         
+unique(status[!is.na(status)])[codes]
+```
+
+This uses the numeric codes as indexes into the original vector of distinct status values:
+
+```         
+c("A", "B", "C")[c(1, 1, 1, 2, 2, 3)]
+```
+
+Result:
+
+```         
+"A" "A" "A" "B" "B" "C"
+```
+
+### 4. Why `by = id`?
+
+```         
+by = id
+```
+
+All three operations are performed separately for each `id`. The carry-forward therefore never crosses from one individual to another.
+
+In short: numeric encoding → LOCF → restore original labels.
+
+One important detail: this expression assumes that `status` contains actual `NA` values and that the observations are sorted by `id` and `year`. Leading missing values remain missing, as in your SAS code.
 
 dplyr:
 
@@ -1411,11 +1706,11 @@ DT[, .(id, year, income, status, balance)]
 
 **Why this approach is better**
 
--   **Speed:** Both `cumsum()` and `fifelse()` are compiled in C, making them exponentially faster than a standard R `for` loop.
+- **Speed:** Both `cumsum()` and `fifelse()` are compiled in C, making them exponentially faster than a standard R `for` loop.
 
--   **Memory Efficiency:** It leverages `data.table`'s internal grouping optimizations (`by = .(id, grp_reset)`) without making memory copies of the data.
+- **Memory Efficiency:** It leverages `data.table`'s internal grouping optimizations (`by = .(id, grp_reset)`) without making memory copies of the data.
 
--   **Safe NA Handling:** The `fifelse()` function temporarily replaces `NA` values with `0` strictly for the mathematical sum, ensuring `NA` rows don't break the chain while leaving your original `income` column unchanged.
+- **Safe NA Handling:** The `fifelse()` function temporarily replaces `NA` values with `0` strictly for the mathematical sum, ensuring `NA` rows don't break the chain while leaving your original `income` column unchanged.
 
 A dplyr version can call the same function on each group:
 
@@ -1515,7 +1810,7 @@ individuals <- tibble(
 individuals
 ```
 
- Here is the code in `data.table`:
+Here is the code in `data.table`:
 
 ```{r}
 
@@ -1529,8 +1824,9 @@ panel <- individuals[
 
 panel
 ```
- Here is the code in `dplyr`:
- 
+
+Here is the code in `dplyr`:
+
 ```{r}
 panel <- individuals |>
   mutate(
@@ -1544,9 +1840,9 @@ panel <- individuals |>
 
 panel
 ```
- 
- We often want the chracteristics at the moment of the event to be repeated for all the years of the panel. Here is the code in `data.table`:
- 
+
+We often want the chracteristics at the moment of the event to be repeated for all the years of the panel. Here is the code in `data.table`:
+
 ```{r}
 
 library(data.table)
@@ -1574,7 +1870,7 @@ panel <- individuals[
 panel[]
 
 ```
- 
+
 You can wrap all this in a function:
 
 ```{r}
@@ -1610,47 +1906,46 @@ risultato
 
 ```
 
-
 Note: `setDT(df)` changes the type of the original object by reference. If you wish to avoid this change, you can use `setDT(copy(df))`.
 
 # SAS-to-R equivalence table
 
-| SAS pattern                     | data.table                              | dplyr                              | base R                                                              | Important qualification                                 |
+| SAS pattern | data.table | dplyr | base R | Important qualification |
 |---------------|---------------|---------------|---------------|---------------|
-| `PROC SORT BY id year`          | `setorder(DT, id, year)`                | `arrange(df, id, year)`            | `df[order(df$id, df$year), ]`                                       | Sorting must be explicit                                |
-| `BY id` group processing        | `by = id`                               | `group_by(id)`                     | `ave(..., id, FUN=)`, `split()`/`lapply()`                          | dplyr grouping persists until `ungroup()`               |
-| `FIRST.id`                      | `seq_len(.N) == 1L` within `by=id`      | `row_number() == 1L`               | `ave(seq_len(n), id, FUN=function(i) i==i[1])`                      | Depends on row order                                    |
-| `LAST.id`                       | `seq_len(.N) == .N`                     | `row_number() == n()`              | `ave(seq_len(n), id, FUN=function(i) i==i[length(i)])`              | Depends on row order                                    |
-| `if first.id then ...`          | Group expression / first-row flag       | `if_else(row_number() == 1L, ...)` | `ifelse(first_record, ..., ...)`                                    | Vectorised logic is usually preferred                   |
-| `RETAIN previous`               | `shift(x)` / grouped state              | `lag(x)` / grouped state           | `ave(x, id, FUN=shift_vec)`                                         | Usually replaces a retained previous value              |
-| `LAG(x)`                        | `shift(x)`                              | `lag(x)`                           | `ave(x, id, FUN=shift_vec)`                                         | SAS `LAG()` is queue-based and conditional calls matter |
-| Sum statement `total + x;`      | `cumsum(fcoalesce(x, 0))`               | `cumsum(coalesce(x, 0))`           | `ave(x, id, FUN=function(v) cumsum(ifelse(is.na(v),0,v)))`          | SAS sum statement ignores missing summands              |
-| Running event count             | `cumsum(condition)`                     | `cumsum(condition)`                | `ave(condition, id, FUN=cumsum)`                                    | Convert missing logical values according to policy      |
-| First row per ID                | `.SD[1L]`                               | `slice_head(n=1)`                  | `df[!duplicated(df$id), ]`                                          | Sort first                                              |
-| Last row per ID                 | `.SD[.N]`                               | `slice_tail(n=1)`                  | `df[!duplicated(df$id, fromLast=TRUE), ]`                           | Sort first                                              |
-| `if last.id then output;`       | Filter `seq_len(.N) == .N` or `.SD[.N]` | `slice_tail(n=1)`                  | `df[!duplicated(df$id, fromLast=TRUE), ]`                           | Separate output objects are idiomatic                   |
-| Previous record's value         | `shift(x)`                              | `lag(x)`                           | `ave(x, id, FUN=shift_vec)`                                         | Adjacent record may not mean adjacent year              |
-| Next record's value             | `shift(x, type="lead")`                 | `lead(x)`                          | `ave(x, id, FUN=function(v) shift_vec(v, type="lead"))`             | Explicit ordering required                              |
-| Cumulative maximum              | `cummax(x)`                             | `cummax(x)`                        | `ave(x, id, FUN=cummax)`                                            | Check missing-value behaviour                           |
-| Change in status                | `x != shift(x)`                         | `x != lag(x)`                      | `ave(x, id, FUN=function(v) v != shift_vec(v))`                     | Define behaviour for missing values                     |
-| Spell number                    | `cumsum(spell_start)`                   | `cumsum(spell_start)`              | `ave(seq_len(n), id, FUN=function(i) cumsum(...))`                  | Define what starts a new spell                          |
-| Carry forward non-missing value | `nafill()` / `na.locf()`                | `tidyr::fill()`                    | explicit `for` loop + `ave()`                                       | Decide how leading missing values behave                |
-| Rank within group               | `frank(x, ties.method=)`                | `min_rank(x)`                      | `ave(x, id, FUN=function(v) rank(v, ties.method=, na.last="keep"))` | Choose tie convention explicitly                        |
+| `PROC SORT BY id year` | `setorder(DT, id, year)` | `arrange(df, id, year)` | `df[order(df$id, df$year), ]` | Sorting must be explicit |
+| `BY id` group processing | `by = id` | `group_by(id)` | `ave(..., id, FUN=)`, `split()`/`lapply()` | dplyr grouping persists until `ungroup()` |
+| `FIRST.id` | `seq_len(.N) == 1L` within `by=id` | `row_number() == 1L` | `ave(seq_len(n), id, FUN=function(i) i==i[1])` | Depends on row order |
+| `LAST.id` | `seq_len(.N) == .N` | `row_number() == n()` | `ave(seq_len(n), id, FUN=function(i) i==i[length(i)])` | Depends on row order |
+| `if first.id then ...` | Group expression / first-row flag | `if_else(row_number() == 1L, ...)` | `ifelse(first_record, ..., ...)` | Vectorised logic is usually preferred |
+| `RETAIN previous` | `shift(x)` / grouped state | `lag(x)` / grouped state | `ave(x, id, FUN=shift_vec)` | Usually replaces a retained previous value |
+| `LAG(x)` | `shift(x)` | `lag(x)` | `ave(x, id, FUN=shift_vec)` | SAS `LAG()` is queue-based and conditional calls matter |
+| Sum statement `total + x;` | `cumsum(fcoalesce(x, 0))` | `cumsum(coalesce(x, 0))` | `ave(x, id, FUN=function(v) cumsum(ifelse(is.na(v),0,v)))` | SAS sum statement ignores missing summands |
+| Running event count | `cumsum(condition)` | `cumsum(condition)` | `ave(condition, id, FUN=cumsum)` | Convert missing logical values according to policy |
+| First row per ID | `.SD[1L]` | `slice_head(n=1)` | `df[!duplicated(df$id), ]` | Sort first |
+| Last row per ID | `.SD[.N]` | `slice_tail(n=1)` | `df[!duplicated(df$id, fromLast=TRUE), ]` | Sort first |
+| `if last.id then output;` | Filter `seq_len(.N) == .N` or `.SD[.N]` | `slice_tail(n=1)` | `df[!duplicated(df$id, fromLast=TRUE), ]` | Separate output objects are idiomatic |
+| Previous record's value | `shift(x)` | `lag(x)` | `ave(x, id, FUN=shift_vec)` | Adjacent record may not mean adjacent year |
+| Next record's value | `shift(x, type="lead")` | `lead(x)` | `ave(x, id, FUN=function(v) shift_vec(v, type="lead"))` | Explicit ordering required |
+| Cumulative maximum | `cummax(x)` | `cummax(x)` | `ave(x, id, FUN=cummax)` | Check missing-value behaviour |
+| Change in status | `x != shift(x)` | `x != lag(x)` | `ave(x, id, FUN=function(v) v != shift_vec(v))` | Define behaviour for missing values |
+| Spell number | `cumsum(spell_start)` | `cumsum(spell_start)` | `ave(seq_len(n), id, FUN=function(i) cumsum(...))` | Define what starts a new spell |
+| Carry forward non-missing value | `nafill()` / `na.locf()` | `tidyr::fill()` | explicit `for` loop + `ave()` | Decide how leading missing values behave |
+| Rank within group | `frank(x, ties.method=)` | `min_rank(x)` | `ave(x, id, FUN=function(v) rank(v, ties.method=, na.last="keep"))` | Choose tie convention explicitly |
 
 ## Which base R primitives play the role of SAS features
 
-| SAS feature                     | Base R primitive(s)                                                                |
+| SAS feature | Base R primitive(s) |
 |------------------------------------|------------------------------------|
-| `BY` groups                     | `ave()`, `split()` + `lapply()`, `tapply()`, `by()`                                |
-| `FIRST.` / `LAST.`              | `!duplicated(..., fromLast = FALSE/TRUE)`; `ave(seq_len(n), id, FUN = ...)`        |
-| Previous/next record            | `ave(x, id, FUN = shift_vec)`; explicit `for` loop by group                        |
-| Running accumulators            | `ave(x, id, FUN = cumsum)` etc.                                                    |
-| `LAG()` (queue semantics)       | Not available natively; a small queue helper or explicit `for` loop is required    |
+| `BY` groups | `ave()`, `split()` + `lapply()`, `tapply()`, `by()` |
+| `FIRST.` / `LAST.` | `!duplicated(..., fromLast = FALSE/TRUE)`; `ave(seq_len(n), id, FUN = ...)` |
+| Previous/next record | `ave(x, id, FUN = shift_vec)`; explicit `for` loop by group |
+| Running accumulators | `ave(x, id, FUN = cumsum)` etc. |
+| `LAG()` (queue semantics) | Not available natively; a small queue helper or explicit `for` loop is required |
 | `RETAIN` for a scalar per group | `ave(..., FUN = ...)` returning a repeated scalar, or `split()`/`sapply()` + merge |
-| Multiple output datasets        | `split()`, `subset()`, `!duplicated()`, `do.call(rbind, ...)`                      |
-| Spell construction              | `rle()` for consecutive runs; `cumsum()` of a start flag                           |
-| Transition matrices             | `table(prev, current, useNA = "no")`                                               |
-| `NA` policy                     | `is.na()`, `ifelse()`, explicit `NA_real_`/`NA_integer_`                           |
+| Multiple output datasets | `split()`, `subset()`, `!duplicated()`, `do.call(rbind, ...)` |
+| Spell construction | `rle()` for consecutive runs; `cumsum()` of a start flag |
+| Transition matrices | `table(prev, current, useNA = "no")` |
+| `NA` policy | `is.na()`, `ifelse()`, explicit `NA_real_`/`NA_integer_` |
 
 # Important migration pitfalls
 
@@ -1805,17 +2100,17 @@ The three templates intentionally make missing-value behaviour explicit for `sta
 
 # Choosing data.table, dplyr, or base R
 
-| Consideration                   | data.table                                  | dplyr                                                             | base R                                                   |
+| Consideration | data.table | dplyr | base R |
 |------------------|------------------|------------------|------------------|
-| Large administrative microdata  | Excellent performance and memory efficiency | Often very readable; performance depends on operation and backend | Adequate for moderate data; performance depends on idiom |
-| In-place updates                | `:=` modifies by reference                  | Usually creates a returned object                                 | Returned objects; explicit assignment                    |
-| Grouped previous/next values    | `shift()`                                   | `lag()` / `lead()`                                                | `ave(..., FUN = shift_vec)` or explicit loop             |
-| Grouped row count               | `.N`                                        | `n()`                                                             | `ave(..., FUN = length)` / `table()`                     |
-| First/last rows                 | `.SD[1L]`, `.SD[.N]`                        | `slice_head()`, `slice_tail()`                                    | `!duplicated(..., fromLast=)`                            |
-| Cumulative operations           | `cumsum()`, `cummax()`, etc.                | Same base R functions inside `mutate()`                           | `ave(..., FUN = cumsum)`                                 |
-| Complex chained transformations | Concise and fast once familiar              | Often very readable with the pipe                                 | Requires explicit intermediate objects                   |
-| SQL-like data manipulation      | `DT[i, j, by]`                              | `select()`, `filter()`, `mutate()`, `summarise()`                 | `subset()`, `merge()`, `aggregate()`                     |
-| External dependencies           | `data.table`                                | `dplyr`, `tibble`, `tidyr`                                        | None                                                     |
+| Large administrative microdata | Excellent performance and memory efficiency | Often very readable; performance depends on operation and backend | Adequate for moderate data; performance depends on idiom |
+| In-place updates | `:=` modifies by reference | Usually creates a returned object | Returned objects; explicit assignment |
+| Grouped previous/next values | `shift()` | `lag()` / `lead()` | `ave(..., FUN = shift_vec)` or explicit loop |
+| Grouped row count | `.N` | `n()` | `ave(..., FUN = length)` / `table()` |
+| First/last rows | `.SD[1L]`, `.SD[.N]` | `slice_head()`, `slice_tail()` | `!duplicated(..., fromLast=)` |
+| Cumulative operations | `cumsum()`, `cummax()`, etc. | Same base R functions inside `mutate()` | `ave(..., FUN = cumsum)` |
+| Complex chained transformations | Concise and fast once familiar | Often very readable with the pipe | Requires explicit intermediate objects |
+| SQL-like data manipulation | `DT[i, j, by]` | `select()`, `filter()`, `mutate()`, `summarise()` | `subset()`, `merge()`, `aggregate()` |
+| External dependencies | `data.table` | `dplyr`, `tibble`, `tidyr` | None |
 
 For very large longitudinal microdata, **data.table is often a strong default** when memory efficiency and speed are important. **dplyr is also a sound choice** when the team prefers a declarative pipeline and the data volume and execution environment support it. **Base R** has no external dependencies and is sufficient for many tasks, but grouped operations quickly become verbose, and the SAS-style sequential state patterns (`RETAIN`, `LAG`) usually require an explicit loop. All three can express most `RETAIN` and `FIRST./LAST.` use cases without translating SAS's row-by-row mechanics literally.
 
