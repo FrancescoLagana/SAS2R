@@ -1,0 +1,791 @@
+---
+  title: "SAS Macro Programming and R: An Equivalence Guide"
+subtitle: "Concepts, patterns, and migration strategies"
+author: "Prepared with ChatGPT"
+date: "2026-10-23"
+lang: en
+format:
+  html:
+  toc: true
+toc-depth: 3
+number-sections: true
+code-fold: false
+theme: cosmo
+pdf:
+  toc: true
+number-sections: true
+colorlinks: true
+execute:
+  echo: true
+eval: true
+editor:
+  markdown:
+    wrap: 72
+  wrap: 72
+---
+
+\# Purpose and scope
+
+SAS macro programming and R solve overlapping but not identical problems.
+
+- **SAS macro language** is a text-generation and code-parameterization system. Macro statements execute before the generated SAS code is compiled and run.
+- **R** is a general-purpose programming language. Its functions, arguments, environments, control flow, and data structures usually provide a more direct and maintainable way to express the same logic.
+- The R package **`macro`** provides a SAS-inspired macro preprocessor for R. It may help with compatibility-oriented translations, but it is not the default recommendation for new R code.
+
+This guide focuses on practical equivalence: how to translate macro-driven SAS workflows into idiomatic R, while also identifying where a literal macro-style translation may be useful.
+
+# 0. Shared example data
+
+All chunks below are **self-contained and reproducible**. They rely on a small set of example objects created once here. Every later chunk that needs a table uses the object directly (and, where a mutation is shown, works on a `copy()` of it).
+
+```{r}
+#| label: setup
+set.seed(42)
+
+people <- data.frame(
+  id        = 1:10,
+  sex       = factor(rep(c("F", "M"), 5)),
+  year      = rep(2023:2025, length.out = 10),
+  age       = c(17, 25, 70, 30, 45, 66, 12, 50, 80, 40),
+  income    = c(0, 1500, NA, 2200, 3100, 2800, 0, 3500, NA, 2600),
+  education = factor(rep(c("L", "M", "H"), length.out = 10))
+)
+
+baseline_data <- data.frame(
+  id = 1:5,
+  score = c(10, 20, 30, 40, 50)
+)
+
+followup_data <- data.frame(
+  id = 4:8,
+  score = c(45, 55, 65, 75, 85)
+)
+
+print(people)
+```
+
+# 1. The mental model
+
+## 1.1 SAS macro processing
+
+A typical SAS macro workflow has two layers:
+
+1.  Macro processor resolves macro variables and executes macro statements.
+2.  The resulting SAS text is submitted to the SAS compiler/runtime.
+
+``` sas
+%let year = 2025;
+
+%macro summarize(data=, year=);
+proc means data=&data;
+where year = &year;
+run;
+%mend;
+
+%summarize(data=work.population, year=&year)
+```
+
+The macro generates SAS source text. `&year` is substituted before the procedure runs.
+
+## 1.2 Idiomatic R
+
+In R, the usual equivalent is a function with explicit arguments:
+
+```{r}
+#| label: summarize-data
+summarize_data <- function(data, year) {
+subset_data <- data[data$year == year, , drop = FALSE]
+summary(subset_data)
+}
+
+summarize_data(people, year = 2025)
+```
+
+The function receives values, not fragments of source code. This distinction is central to migration.
+
+# 2. Core equivalence table
+
+| SAS macro feature | Typical purpose | Idiomatic R equivalent | Notes |
+|----|----|----|----|
+| `%LET name=value;` | Define macro variable | `name <- value` | R objects have types; macro variables are text |
+| `&name` | Resolve macro variable | Use object/argument `name` | No textual substitution needed in ordinary R |
+| `%MACRO ... %MEND;` | Define reusable generator | `function(...) {}` | Function returns values or performs explicit work |
+| `%macro(arg=val)` | Invoke macro | `fun(arg = val)` | Named arguments are usually clearer |
+| `%IF ... %THEN` | Conditional code generation | `if (...) {}` | R condition must be a length-one logical |
+| `%ELSE` | Alternative branch | `else {}` | Standard R control flow |
+| `%DO i=1 %TO n;` | Repeated generation | `for (i in seq_len(n)) {}` | `seq_len(0)` safely returns `integer(0)` |
+| `%DO %WHILE(...)` | Conditional repetition | `while (...) {}` | Use explicit state updates |
+| `%DO %UNTIL(...)` | Repeat until condition | `repeat { ...; if (cond) break }` | R has no direct `until` statement |
+| `%SYSFUNC(f(...))` | Call DATA step function in macro processor | Call R function `f(...)` | R functions operate on typed values |
+| `%SYSEVALF(expr)` | Evaluate numeric expression | `eval()` or ordinary arithmetic | Prefer direct arithmetic; `eval()` is rarely needed |
+| `%EVAL(expr)` | Integer expression evaluation | Integer arithmetic / `as.integer()` | Be explicit about numeric types |
+| `%STR(...)`, `%NRSTR(...)` | Mask macro special characters | Character strings / quoting | R string literals use quotes and escapes |
+| `%SUPERQ(name)` | Protect macro-variable value | Pass character value as data | Avoid code construction where possible |
+| `%UNQUOTE(...)` | Remove macro quoting | Usually unnecessary | R does not have SAS macro quoting semantics |
+| `%LOCAL` | Local macro variable scope | Function-local variables | R lexical scoping differs; assignments can create local bindings |
+| `%GLOBAL` | Global macro variable | Global environment assignment | Avoid `<<-` unless intentional |
+| `%PUT` | Write to SAS log | `message()`, `cat()`, `print()` | `message()` is often suitable for diagnostics |
+| `%INCLUDE file;` | Include SAS source | `source("file.R")` | `source()` evaluates code in an environment |
+| `CALL SYMPUTX` | Create/update macro variable from DATA step | Return value; assign to object | Avoid hidden cross-step state |
+| `SYMGET` | Read macro variable in DATA step | Read an object/argument | In R, pass dependencies explicitly |
+| `SYMEXIST` | Test macro variable existence | `exists("name", envir = env)` | Use explicit environment if needed |
+| `PROC SQL INTO :var` | Store query result in macro variable | Assign query result to R object | Result may be vector, data frame, or scalar |
+| `&var.` | Delimited macro reference | R object reference | SAS period delimiter has no direct R equivalent |
+| `&&name&i` | Indirect/nested resolution | List/vector indexing or named lookup | Replace generated names with structured objects |
+| Macro-generated PROC/DATA steps | Generate many SAS steps | Function + loop / map | Consider one vectorized operation first |
+
+\# 3. Macro variables: `%LET` and `&name`
+
+\## SAS
+
+``` sas
+%let input_ds = work.people;
+%let reference_year = 2025;
+
+proc freq data=&input_ds;
+tables sex;
+where year = &reference_year;
+run;
+```
+
+## R
+
+```{r}
+#| label: macro-variables
+input_data     <- people
+reference_year <- 2025
+
+table(input_data$sex[input_data$year == reference_year])
+```
+
+### Important difference
+
+SAS macro variables are fundamentally character text. R objects can be numeric, logical, character, lists, or data frames. Prefer keeping values typed in R rather than converting everything to strings.
+
+If a character value is intended as a literal, keep it as a character value:
+
+```{r}
+#| label: char-literal
+region <- "Bern"
+region
+```
+
+# 4. Macro definitions and parameters
+
+## SAS
+
+``` sas
+%macro tabulate(data=, variable=);
+proc freq data=&data;
+tables &variable;
+run;
+%mend;
+
+%tabulate(data=work.people, variable=sex)
+```
+
+## R function
+
+```{r}
+#| label: tabulate-variable
+tabulate_variable <- function(data, variable) {
+  table(data[[variable]], useNA = "ifany")
+}
+
+tabulate_variable(people, "sex")
+```
+
+For reusable R code, prefer a function argument that identifies a column by name, or use a well-documented tidy-evaluation interface. The `data[[variable]]` pattern is explicit and works well when `variable` is a character string.
+
+# 5. Conditional logic: `%IF` / `%ELSE`
+
+## SAS
+
+``` sas
+%macro choose(data=, mode=);
+%if %upcase(&mode) = FULL %then %do;
+proc means data=&data;
+run;
+%end;
+%else %do;
+proc freq data=&data;
+run;
+%end;
+%mend;
+```
+
+## R
+
+```{r}
+#| label: choose-summary
+choose_summary <- function(data, mode = "FULL") {
+  mode <- toupper(mode)
+  
+  if (mode == "FULL") {
+    summary(data)
+  } else {
+    lapply(data, function(x) if (is.factor(x)) table(x) else NULL)
+  }
+}
+
+choose_summary(people, mode = "FULL")
+```
+
+Use `if` for one logical value. For vectorized conditions, use `ifelse()` or (often more appropriately) indexing.
+
+# 6. Iteration: `%DO`
+
+## 6.1 Numeric loop
+
+SAS:
+
+``` sas
+%macro run_years(first=, last=);
+%do year = &first %to &last;
+%put Processing &year;
+%end;
+%mend;
+
+%run_years(first=2020, last=2025)
+```
+
+R:
+
+```{r}
+#| label: run-years
+run_years <- function(first, last) {
+for (year in seq.int(first, last)) {
+  message("Processing ", year)
+}
+}
+
+run_years(2020, 2025)
+```
+
+For loops that may have zero iterations, use `seq_len(n)`:
+
+```{r}
+#| label: seq-len
+n <- 0L
+for (i in seq_len(n)) {
+# work
+}
+message("Number of iterations with n = 0: ", length(seq_len(n)))
+```
+
+Avoid `1:n` when `n` may be zero: in R, `1:0` is `c(1, 0)`, not an empty sequence.
+
+## 6.2 Iterating over a list of values
+
+SAS often creates one step per value:
+
+``` sas
+%let vars = age income education;
+```
+
+R:
+
+```{r}
+#| label: iterate-vars
+vars <- c("age", "income", "education")
+
+for (variable in vars) {
+message("Processing variable: ", variable)
+}
+```
+
+If the task can be vectorized or grouped in one operation, that may be simpler and faster than generating repeated code.
+
+# 7. `%SYSFUNC`, `%EVAL`, and `%SYSEVALF`
+
+SAS:
+
+``` sas
+%let next_year = %sysfunc(sum(&year, 1));
+%let is_valid = %eval(&year >= 2020);
+```
+
+R:
+
+```{r}
+#| label: sysfunc-eval
+year      <- 2025
+next_year <- year + 1
+is_valid  <- year >= 2020
+
+next_year
+is_valid
+```
+
+R normally evaluates arithmetic and logical expressions directly. `eval()` is not the routine equivalent of `%EVAL`; it evaluates an R language object in an environment and should only be used when dynamic evaluation is genuinely required.
+
+# 8. Local and global scope: `%LOCAL` / `%GLOBAL`
+
+SAS:
+
+``` sas
+%macro example();
+%local temp;
+%let temp = 10;
+%put &=temp;
+%mend;
+```
+
+R:
+
+```{r}
+#| label: local-scope
+example_scope <- function() {
+temp <- 10
+message("temp = ", temp)
+}
+
+example_scope()
+```
+
+R function assignments are local by default. SAS `%GLOBAL` is sometimes approximated by assignment in `.GlobalEnv`, but global mutation is usually less maintainable than returning a value.
+
+```{r}
+#| label: return-value
+result <- function() {
+  value <- 10
+  value
+}
+
+x <- result()
+x
+```
+
+`<<-` searches parent environments and updates an existing binding; it is not a general-purpose replacement for `%GLOBAL`.
+
+# 9. Indirect references: `&&name&i`
+
+SAS macro code may use indirect resolution:
+
+``` sas
+%let name1 = age;
+%let name2 = income;
+
+%do i = 1 %to 2;
+%put &&name&i;
+%end;
+```
+
+In R, use a vector or list rather than constructing variable names:
+
+```{r}
+#| label: indirect-vector
+variable_names <- c("age", "income")
+
+for (variable in variable_names) {
+print(variable)
+}
+```
+
+For multiple objects, prefer a named list:
+
+```{r}
+#| label: named-list
+datasets <- list(
+baseline = baseline_data,
+followup = followup_data
+)
+
+datasets[["baseline"]]
+```
+
+Avoid patterns such as `get(paste0("data", i))` when a list would express the structure directly.
+
+# 10. `CALL SYMPUTX`, `SYMGET`, and `PROC SQL INTO`
+
+## SAS
+
+``` sas
+data _null_;
+set work.people end=last;
+if last then call symputx("n_obs", _n_);
+run;
+
+%put Number of observations: &n_obs;
+```
+
+## R
+
+```{r}
+#| label: n-obs
+n_obs <- nrow(people)
+message("Number of observations: ", n_obs)
+```
+
+SAS SQL:
+
+``` sas
+proc sql noprint;
+select count(*) into :n_obs
+from work.people;
+quit;
+```
+
+R:
+
+```{r}
+#| label: n-obs-sql
+n_obs <- nrow(people)
+n_obs
+```
+
+The R equivalent is usually a direct assignment. If a database is involved, use the database query result as an R object rather than routing it through a macro variable.
+
+# 11. `%INCLUDE` and modular code
+
+SAS:
+
+``` sas
+%include "/project/programs/common.sas";
+```
+
+R:
+
+```{r}
+#| label: include
+# Create a small temporary file to demonstrate source()
+tmp <- tempfile(fileext = ".R")
+writeLines("common_value <- 42", tmp)
+source(tmp)
+common_value
+unlink(tmp)
+```
+
+For larger R projects, consider package structure, explicit function exports, and project-relative paths (for example, with the `here` package) instead of relying on the current working directory.
+
+# 12. Text generation versus data-driven programming
+
+A macro may generate a different variable name or procedure for each iteration. In R, first consider whether the operation can be expressed as:
+
+- a function applied to a vector of names;
+- a list of inputs and outputs;
+- a grouped or vectorized data transformation;
+- a single model call with formula construction;
+- a loop that calls a function, rather than creating source code.
+
+Example: process several variables.
+
+SAS:
+
+``` sas
+%macro describe(data=, vars=);
+%do i = 1 %to %sysfunc(countw(&vars));
+%let var = %scan(&vars, &i);
+proc means data=&data;
+var &var;
+run;
+%end;
+%mend;
+```
+
+R:
+
+```{r}
+#| label: describe-vars
+describe_vars <- function(data, vars) {
+lapply(vars, function(variable) {
+  x <- data[[variable]]
+  if (!is.numeric(x)) {
+    return(c(n = sum(!is.na(x)), mean = NA_real_, sd = NA_real_))
+  }
+  c(
+    n    = sum(!is.na(x)),
+    mean = mean(x, na.rm = TRUE),
+    sd   = sd(x, na.rm = TRUE)
+  )
+}) |>
+  stats::setNames(vars)
+}
+
+describe_vars(people, c("age", "income"))
+```
+
+This returns structured results rather than producing repeated source text.
+
+# 13. SAS macro quoting and R strings
+
+SAS macro quoting functions (`%STR`, `%NRSTR`, `%BQUOTE`, `%NRBQUOTE`, `%SUPERQ`, `%UNQUOTE`) protect characters from macro interpretation. They do not have one-to-one equivalents in R.
+
+In R, strings are data:
+
+```{r}
+#| label: strings-are-data
+text_value <- "A value containing &, %, commas, and spaces"
+text_value
+```
+
+When generating code, distinguish carefully between: - a character value; - an R symbol; - an R language expression; - source text.
+
+Prefer constructing language objects with `call()`, `as.name()`, or formula interfaces only when necessary. Avoid concatenating untrusted values into executable source code.
+
+# 14. When the R `macro` package may be relevant
+
+The R package `macro` offers a SAS-inspired macro preprocessor. It can be useful when: - a team needs to preserve macro-like syntax during a staged migration; - a large codebase contains extensive macro-driven source generation; - a compatibility layer is deliberately part of the migration plan.
+
+It should not be assumed to provide complete SAS macro processor compatibility. Validate syntax and behavior against the package's current documentation and test representative edge cases. For new R development, native functions and ordinary R control flow are generally easier to test, debug, and maintain.
+
+# 15. Migration checklist
+
+1.  **Classify each macro.** Is it a parameterized procedure, a loop, a conditional branch, or a source-code generator?
+2.  **Replace macro parameters with function arguments.**
+3.  **Replace macro variables with typed R objects.**
+4.  **Replace `%IF` and `%DO` with `if`, `for`, `while`, or `lapply`/`Map`.**
+5.  **Replace generated variable names with vectors and named lists.**
+6.  **Replace `%INCLUDE` with `source()` or package functions.**
+7.  **Replace macro-variable handoffs with explicit return values.**
+8.  **Test edge cases:** zero iterations, missing values, empty strings, unusual names, and type conversion.
+9.  **Compare outputs** with SAS results on representative production data.
+10. **Keep source generation only where it is truly needed.**
+
+# 16. Compact reference: SAS macro to R
+
+| SAS | R |
+|----|----|
+| `%let x=5;` | `x <- 5` |
+| `&x` | `x` |
+| `%macro f(a=); ... %mend;` | `f <- function(a) { ... }` |
+| `%f(a=1)` | `f(a = 1)` |
+| `%if condition %then %do;` | `if (condition) {` |
+| `%else %do;` | `} else {` |
+| `%do i=1 %to n;` | `for (i in seq_len(n)) {` |
+| `%do %while(condition);` | `while (condition) {` |
+| `%sysfunc(function(...))` | `function(...)` |
+| `%eval(a+b)` | `a + b` |
+| `%local x;` | Function-local `x <- ...` |
+| `%global x;` | Prefer return value; global assignment only if intentional |
+| `%put text;` | `message("text")` |
+| `%include "file.sas";` | `source("file.R")` |
+| `call symputx("x", value);` | `x <- value` or return `value` |
+| `symget("x")` | Pass/read object `x` |
+| `proc sql into :x` | `x <- query_result` |
+| `&&name&i` | `names[i]` or `named_list[[key]]` |
+| `%scan(text, i)` | `strsplit(text, ...)[[1]][i]` (or a string utility) |
+
+# 17. Further reading
+
+- SAS documentation: *SAS Macro Language* and *Macro Language Reference*.
+- R documentation: *An Introduction to R*, especially functions, control flow, and environments.
+- R package `macro`: review its package documentation and examples before using it as a compatibility layer.
+
+The central migration principle is: **translate the intent, not the macro syntax**. SAS macros often generate source text; R functions usually operate on values and return structured results.
+
+# 18. Returning values from functions: `return()` and implicit return
+
+In R, a function returns the value of its **last evaluated expression** unless `return()` is used to exit earlier. Explicit `return()` is useful for clarity and early exits.
+
+```{r}
+#| label: double-explicit
+double_value <- function(x) {
+  result <- x * 2
+  return(result)
+}
+
+answer <- double_value(10)
+answer
+```
+
+The same function can omit `return()` because the final expression is returned automatically:
+
+```{r}
+#| label: double-implicit
+double_value <- function(x) {
+  result <- x * 2
+  result
+}
+double_value(10)
+```
+
+An early exit is a good use of `return()`:
+
+```{r}
+#| label: safe-mean
+safe_mean <- function(x) {
+  if (length(x) == 0L) {
+    return(NA_real_)
+  }
+  mean(x, na.rm = TRUE)
+}
+
+safe_mean(numeric(0))
+safe_mean(c(1, 2, NA, 4))
+```
+
+The assignment `answer <- double_value(10)` stores the returned value in the environment where the assignment is evaluated. The local variable `result` does not become global.
+
+# 19. Functions that create one data frame
+
+A function can create a data frame locally and return it to the caller.
+
+```{r}
+#| label: make-population-summary
+make_population_summary <- function(data) {
+  result <- data.frame(
+    n        = nrow(data),
+    mean_age = mean(data$age, na.rm = TRUE)
+  )
+  return(result)
+}
+
+population_summary <- make_population_summary(people)
+population_summary
+```
+
+Here, `result` is local to the function. `population_summary` is created in the caller's environment. A concise equivalent is:
+
+```{r}
+#| label: make-population-summary-concise
+make_population_summary <- function(data) {
+data.frame(
+  n        = nrow(data),
+  mean_age = mean(data$age, na.rm = TRUE)
+)
+}
+population_summary <- make_population_summary(people)
+population_summary
+```
+
+A function can also return a transformed data frame:
+
+```{r}
+#| label: add-age-group
+add_age_group <- function(data) {
+data$age_group <- ifelse(data$age < 18, "Under 18", "18 or older")
+data
+}
+people_with_group <- add_age_group(people)
+people_with_group[, c("id", "age", "age_group")]
+```
+
+# 20. Functions that create multiple data frames
+
+When a function needs to return two or more datasets, return a **named list**. Lists can contain data frames of different sizes and shapes.
+
+```{r}
+#| label: split-population
+split_population <- function(data) {
+  adults <- data[data$age >= 18, , drop = FALSE]
+  minors <- data[data$age <  18, , drop = FALSE]
+  
+  list(
+    adults = adults,
+    minors = minors
+  )
+}
+
+population_parts <- split_population(people)
+adults <- population_parts$adults
+minors <- population_parts$minors
+nrow(adults)
+nrow(minors)
+```
+
+The function returns one object—the list—which contains both data frames. The caller accesses each dataset by name.
+
+## 20.1 Returning several derived datasets
+
+```{r}
+#| label: build-outputs
+build_outputs <- function(data) {
+  cleaned <- data[!is.na(data$id), , drop = FALSE]
+  
+  summary_by_sex <- aggregate(
+    age ~ sex,
+    data = cleaned,
+    FUN  = function(x) mean(x, na.rm = TRUE)
+  )
+  
+  missing_ids <- data[is.na(data$id), , drop = FALSE]
+  
+  list(
+    cleaned        = cleaned,
+    summary_by_sex = summary_by_sex,
+    missing_ids    = missing_ids
+  )
+}
+
+outputs <- build_outputs(people)
+cleaned_data       <- outputs$cleaned
+sex_summary        <- outputs$summary_by_sex
+records_missing_id <- outputs$missing_ids
+
+sex_summary
+```
+
+This approach is explicit and testable. It avoids creating global variables merely to transfer results.
+
+# 21. SAS DATA steps and procedures that produce datasets
+
+SAS programs often create named output datasets as a side effect:
+
+``` sas
+data work.adults work.minors;
+set work.people;
+if age >= 18 then output work.adults;
+else output work.minors;
+run;
+```
+
+An idiomatic R function normally returns its outputs explicitly:
+
+```{r}
+#| label: split-population-2
+split_population <- function(data) {
+list(
+  adults = data[data$age >= 18, , drop = FALSE],
+  minors = data[data$age <  18, , drop = FALSE]
+)
+}
+
+result <- split_population(people)
+adults <- result$adults
+minors <- result$minors
+nrow(adults)
+nrow(minors)
+```
+
+SAS names output datasets in the DATA step. The R function returns a list of objects, and the caller chooses the names to which they are assigned. This makes the function reusable with different input and output names.
+
+## 21.1 If the function should save datasets to disk
+
+Creating an in-memory data frame and writing it to a file are different responsibilities. If persistence is required, make it explicit:
+
+```{r}
+#| label: write-outputs
+write_population_outputs <- function(data, output_dir) {
+dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+
+adults <- data[data$age >= 18, , drop = FALSE]
+minors <- data[data$age <  18, , drop = FALSE]
+
+saveRDS(adults, file.path(output_dir, "adults.rds"))
+saveRDS(minors, file.path(output_dir, "minors.rds"))
+
+invisible(list(adults = adults, minors = minors))
+}
+
+tmp_dir <- tempfile("population_outputs_")
+written <- write_population_outputs(people, tmp_dir)
+names(written)
+list.files(tmp_dir)
+```
+
+`invisible()` suppresses automatic printing at the console; the list can still be assigned by the caller.
+
+# 22. Mapping SAS output patterns to R return patterns
+
+| SAS pattern | Recommended R pattern |
+|----|----|
+| DATA step creates one output dataset | Function returns one data frame |
+| DATA step creates multiple output datasets | Function returns a named list of data frames |
+| `PROC SQL` creates a table | Assign the query result to an R object, or return it |
+| Macro variable carries a calculated result | Return the value from a function |
+| Macro creates several intermediate datasets | Return a named list, or use a clear pipeline |
+| Output dataset must be written permanently | Explicitly write it with `saveRDS()`, `write.csv()`, or a database writer |
+| Function updates an existing object | Prefer returning the updated object and assigning it at the call site |
+
+**Recommended principle:** use a function's return value to communicate data. Avoid assigning output datasets into `.GlobalEnv` from inside a function unless global mutation is an explicit design requirement.

@@ -1,0 +1,1023 @@
+---
+title: "SAS → R Migration with data.table"
+subtitle: "Practical guide: DATA STEP, PROC SQL, PROC FORMAT, and tables"
+author: "Working notes"
+lang: en
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-fold: false
+  docx:
+    toc: true
+    number-sections: true
+editor:
+  markdown:
+    wrap: 115
+---
+
+# Introduction
+
+This document brings together the topics discussed: data selection and transformation with `data.table`,
+equivalents for SAS `DATA STEP` and `PROC SQL`, handling of `RETAIN`, SAS formats (`PROC FORMAT`), tabulations, and
+table production.
+
+All examples are **self-contained and reproducible**: each code chunk creates the data it needs (or relies on a
+small set of shared example tables defined in Section 1.0). You can copy any chunk into a fresh R session and run
+it.
+
+`data.table` often works by reference: `:=` modifies a table without copying it in full. Use `copy()` when an
+independent copy is needed.
+
+```{r}
+#| label: set2up
+#| include: false
+library(data.table)
+```
+
+# data.table fundamentals
+
+## Shared example data
+
+To make every example reproducible, we define a small synthetic dataset `DT_base` (and lookup tables) once here.
+Later chunks that need a fresh `DT` use `copy(DT_base)` so that mutations in one example do not leak into another.
+
+```{r}
+#| label: example-data
+set.seed(42)
+
+DT_base <- data.table(
+  id      = rep(1:4, each = 3),
+  anno    = rep(2023:2025, times = 4),
+  cantone = rep(c("TI", "ZH", "BE", "GE"), each = 3),
+  sesso   = rep(c(1L, 2L, 1L, 2L), each = 3),
+  eta     = c(17, 25, 70, 30, 45, 66, 12, 50, 80, 40, 64, 65),
+  stato   = rep(c("A", "B", "A", "B"), each = 3),
+  importo = c(100, 200, NA, 150, 250, 300, 50, 75, 125, 90, NA, 400),
+  valore  = c(10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120)
+)
+
+DT_base[, data_ref := as.Date("2025-06-15") + anno - 2025]
+
+DT_base
+```
+
+A small lookup table used in join and format examples:
+
+```{r}
+#| label: lookup-data
+anagrafica <- data.table(
+  id      = 1:4,
+  nome    = c("Anna", "Bruno", "Carla", "Dario"),
+  regione = c("Sud", "Nord", "Centro", "Nord")
+)
+
+transazioni <- data.table(
+  id_trans = c(1L, 2L, 2L, 4L, 5L),
+  anno_ref = c(2023L, 2024L, 2024L, 2025L, 2025L),
+  importo  = c(10, 20, 30, 40, 50)
+)
+
+anagrafica
+transazioni
+```
+
+## General syntax
+
+``` r
+DT[i, j, by]
+```
+
+- `i`: rows to select; conceptually equivalent to `WHERE`/`IF`.
+- `j`: columns to select or expressions to calculate.
+- `by`: groups, like SAS `BY` or SQL `GROUP BY`.
+
+Examples (each chunk starts from a fresh copy of `DT_base`):
+
+```{r}
+#| label: syntax-examples
+DT <- copy(DT_base)
+
+DT[anno == 2025]
+DT[, .(id, importo)]
+DT[, .(totale = sum(importo, na.rm = TRUE)), by = .(cantone, anno)]
+```
+
+## Selecting rows and columns
+
+```{r}
+#| label: select-rows-cols
+DT <- copy(DT_base)
+
+# Rows
+DT[stato == "A"]
+DT[anno >= 2023 & anno <= 2024]
+
+# Columns by name
+DT[, .(id, anno, valore)]
+
+# Columns by dynamic name
+cols <- c("id", "anno", "valore")
+DT[, ..cols]
+
+# Selecting/excluding columns
+DT[, !c("stato"), with = FALSE]
+```
+
+For robust dynamic column selection, `..cols` is the idiomatic `data.table` convention.
+
+## Overview of the symbol \[..\]
+
+Both of these lines use `data.table`'s `j` slot to select or drop columns **dynamically** — that is, using a
+character vector instead of writing column names literally. They are the `data.table` idiom for what would be
+`keep` / `drop` in SAS or `select()` / `select(-...)` in dplyr.
+
+``` r
+# Keep columns by dynamic name
+cols <- c("id", "anno", "valore")
+DT[, ..cols]
+
+# Drop a column by name
+DT[, !c("stato"), with = FALSE]
+```
+
+```{r}
+#| label: setup
+library(data.table)
+
+DT <- data.table(
+  id     = 1:3,
+  anno   = 2020:2022,
+  valore = c(10, 20, 30),
+  stato  = c("A", "B", "A")
+)
+
+DT
+```
+
+## `DT[, ..cols]` — select columns by a character vector
+
+```{r}
+#| label: keep-dynamic
+cols <- c("id", "anno", "valore")
+DT[, ..cols]
+```
+
+- `cols` is an ordinary R character vector of column names.
+- Inside `DT[...]`, a bare symbol `cols` would be looked up **as a column name** in `DT` (that is `data.table`'s
+  convention — see the `by =` and `:=` behavior). Precisely because of that, `data.table` supports a special
+  prefix: **`..`** means *“do not look this up as a column; look it up in the calling environment.”*
+- So `..cols` expands to `list(id, anno, valore)` — i.e. it returns a new `data.table` containing exactly those
+  three columns, in that order.
+
+## Equivalent ways to write the same thing
+
+```{r}
+#| label: keep-equivalents
+DT[, cols, with = FALSE]        # older / explicit form
+DT[, .(id, anno, valore)]       # literal names, not dynamic
+DT[, mget(cols)]                # returns a named list
+DT[, setdiff(names(DT), "stato"), with = FALSE]
+```
+
+## When it matters
+
+Any time the column list is computed at runtime — a user-supplied variable list, a loop over column groups, a
+config file, etc. `..cols` is the idiomatic `data.table` way to say “give me these columns whose names I only know
+from a variable.”
+
+## Common pitfall
+
+Forgetting the `..` gives an error, because `data.table` first tries to evaluate `cols` as a column expression:
+
+``` r
+#| label: keep-pitfall
+#| error: true
+DT[, cols]
+```
+
+## `DT[, !c("stato"), with = FALSE]` — exclude columns by name
+
+```{r}
+#| label: drop-dynamic
+DT[, !c("stato"), with = FALSE]
+```
+
+- `c("stato")` is just the character vector `"stato"`.
+- `!` on a character vector means *“set difference”* in `data.table`'s `j` context: `!(cols_to_drop)` is
+  interpreted as `setdiff(names(DT), cols_to_drop)`.
+- `with = FALSE` is required here, because without it `data.table` would try to interpret `!c("stato")` as a column
+  expression and fail. With `with = FALSE`, `j` is evaluated as if it were a character-vector selection — the
+  “drop” semantics.
+- The result is a new `data.table` with **all columns except `stato`**.
+
+## Equivalent / related forms
+
+```{r}
+#| label: drop-equivalents
+DT[, !"stato", with = FALSE]                       # single name
+DT[, setdiff(names(DT), "stato"), with = FALSE]    # explicit
+```
+
+Note that `:= NULL` **removes the column from `DT` by reference** — that is the `data.table` counterpart of SAS
+`DROP stato;` inside a DATA step, whereas `DT[, !"stato", with = FALSE]` only returns a new table and leaves `DT`
+untouched.
+
+```{r}
+#| label: drop-in-place
+DT_copy <- copy(DT)
+DT_copy[, stato := NULL]
+names(DT_copy)
+names(DT)   # original DT is unchanged
+```
+
+## Why `with = FALSE` matters
+
+In `DT[i, j, by]`, `j` is normally evaluated as an **R expression in the context of `DT`'s columns**:
+
+```{r}
+#| label: j-expression
+DT[, id + anno]      # j is an expression, not a name
+```
+
+But sometimes you want to say “the following *character vector* is a list of columns.” That is what `with = FALSE`
+enables: `j` is treated as a character vector to select, and the `!` prefix means “drop these.” Without
+`with = FALSE`, `data.table` would try to compute `!c("stato")` as a column-level operation and error out.
+
+## The Power of `:=` (Assignment by Reference) in data.table
+
+In standard R, modifying a dataset usually means creating a hidden copy of it behind the scenes (the
+"copy-on-modify" behavior). If your dataset is huge, this wastes memory and slows down execution.
+
+The **`:=` operator** is `data.table`'s secret weapon. It modifies your data **by reference (in-place)**. Instead
+of copying millions of rows to change one value, it changes the value directly in your computer's RAM, making it
+incredibly fast and memory-efficient.
+
+### Key Use Cases with Examples
+
+Below are three examples showcasing how `:=` transforms data manipulation from a high-memory operation into an
+instantaneous task.
+
+#### Adding or Updating Columns Without Copying
+
+Instead of re-assigning the whole table (`df <- df |> mutate(...)`), `:=` modifies the table instantly.
+
+```{r}
+library(data.table)
+
+# Create a small dataset
+dt <- data.table(
+  id = 1:3, 
+  sales = c(100, 200, 300)
+)
+
+# Add a 'tax' column directly to 'dt' without creating a copy
+dt[, tax := sales * 0.22]
+
+print(dt)
+```
+
+#### Modifying a Subset of Rows Efficiently
+
+In base R, updating a specific subset of rows requires copying the entire matrix. With `:=`, `data.table`
+surgically alters only the rows that match your filter criteria.
+
+```{r}
+# Create a dataset with missing values
+employees <- data.table(
+  name = c("Alice", "Bob", "Charlie"),
+  status = c("Active", "On Leave", "Active"),
+  bonus = c(500, NA, 600)
+)
+
+# Update bonus ONLY for people 'On Leave' without copying the table
+employees[status == "On Leave", bonus := 0]
+
+print(employees)
+```
+
+#### Updating Multiple Columns Simultaneously
+
+You can update or create multiple columns at once using two different syntaxes depending on your aesthetic
+preference.
+
+**Option A: Using Functional Syntax**
+
+```{r}
+dt <- data.table(id = 1:3, mass_kg = c(70, 80, 90))
+
+# Update mass and add a label simultaneously
+dt[, `:=`(
+  mass_lbs = mass_kg * 2.2,
+  checked  = TRUE
+)]
+```
+
+**Option B: Using Vector Syntax**
+
+```{r}
+# The exact same operation using a different layout
+dt[, c("mass_lbs", "checked") := .(mass_kg * 2.2, TRUE)]
+```
+
+### Why It Matters: Performance Summary
+
+| Action | Standard R (`dplyr`/`base`) | `data.table` with `:=` |
+|:-------------------------------------|:-------------------------------------|:-------------------------------------|
+| **RAM Behavior** | Copies the whole table into a new memory block. | Overwrites/adds fields directly at the same RAM address. |
+| **Speed** | Slows down exponentially as dataset size grows. | Remains blistering fast even on 100GB+ tables. |
+| **Code Impact** | Requires assignment back to the variable (`x <- ...`). | No assignment needed; the table changes permanently. |
+
+# SAS / dplyr mental model
+
+| Intent | SAS | dplyr | data.table |
+|----------------------------|----------------------------|----------------------------|-------------------------------|
+| Keep these columns | `keep id anno valore;` | `select(id, anno, valore)` | `DT[, .(id, anno, valore)]` (literal) or `DT[, ..cols]` (dynamic) |
+| Drop this column | `drop stato;` | `select(-stato)` | `DT[, !"stato", with = FALSE]` (returns new DT) or `DT[, "stato" := NULL]` (mutates) |
+
+## Worked example
+
+```{r}
+#| label: worked-example
+library(data.table)
+DT <- data.table(id = 1:3, anno = 2020:2022,
+                 valore = c(10, 20, 30), stato = c("A", "B", "A"))
+
+cols <- c("id", "anno", "valore")
+
+# keep
+DT[, ..cols]
+
+# drop (returns a new table; DT unchanged)
+DT[, !"stato", with = FALSE]
+
+# drop in place (DT is modified!)
+DT[, stato := NULL]
+names(DT)
+```
+
+## Resumé
+
+- `DT[, ..cols]` → **keep** the columns named in the character vector `cols`. The `..` tells `data.table` “`cols`
+  lives in the environment, not in the table.”
+- `DT[, !c("stato"), with = FALSE]` → **drop** `stato` and return the rest. `!` is “set difference,” and
+  `with = FALSE` tells `data.table` that `j` is a character vector of column names rather than an expression.
+- Neither of the two `j`-expressions modifies `DT`; use `DT[, col := NULL]` if you want in-place removal.
+
+## Creating and modifying variables
+
+```{r}
+#| label: create-modify
+DT <- copy(DT_base)
+
+# New variable
+DT[, rapporto := valore / importo]
+
+# Multiple variables
+DT[, `:=`(
+  totale   = importo + valore,
+  anno_ref = as.integer(format(data_ref, "%Y"))
+)]
+
+# Modify an existing variable
+DT[, stato := fifelse(anno >= 2024, "A", "B")]
+
+DT[, .(id, anno, rapporto, totale, anno_ref, stato)]
+```
+
+`:=` modifies `DT` by reference. To create a copy:
+
+```{r}
+#| label: copy-example
+DT_lavoro <- copy(DT_base)
+DT_lavoro[, nuovo := 1L]
+cat("Rows in DT_base:  ", nrow(DT_base),  "- columns:", ncol(DT_base),  "\n")
+cat("Rows in DT_lavoro:", nrow(DT_lavoro), "- columns:", ncol(DT_lavoro), "\n")
+```
+
+```{r}
+DT_lavoro
+```
+
+## Sorting
+
+```{r}
+#| label: sort-examples
+DT <- copy(DT_base)
+
+setorder(DT, cantone, anno)
+head(DT[, .(id, cantone, anno)])
+
+setorderv(DT, c("cantone", "anno"), order = -1L)
+head(DT[, .(id, cantone, anno)])
+```
+
+`setorder()` modifies the row order of the table by reference. Usa **NSE** (comodo per te che digiti a schermo).
+
+`setorderv()` : uses **Valutazione Standard** (comodo per i computer e per i cicli automatizzati).
+
+```{r}
+
+setorderv(DT, c("cantone", "anno"), order = -1L)
+head(DT[, .(id, cantone, anno)])
+```
+
+## Labels and metadata
+
+`data.table` does not have a native label system identical to SAS. Labels can be stored as attributes, but a
+separate data dictionary is often more reliable for interoperability and reporting.
+
+```{r}
+#| label: labels
+DT <- copy(DT_base)
+
+attr(DT$sesso, "label")  <- "Sesso"
+attr(DT$sesso, "labels") <- c(Uomo = 1L, Donna = 2L)
+
+str(attributes(DT$sesso))
+```
+
+Attributes may not survive every transformation or export. For migration projects, prefer a metadata table
+containing variable name, label, type, format, and coding (see Section 7).
+
+## Aggregations and tabulations
+
+## Counts and statistics by group
+
+```{r}
+#| label: agg-counts
+DT <- copy(DT_base)
+DT
+DT[, .N, by = .(cantone, anno)]
+DT[, .(n = .N, media = mean(valore, na.rm = TRUE)),
+   by = .(cantone)]
+```
+
+`.N` is the number of rows in a group.
+
+## Cross-tabulations
+
+```{r}
+#| label: crosstab
+DT <- copy(DT_base)
+DT[, classe_eta := cut(eta, breaks = c(-Inf, 17, 64, Inf),
+                       labels = c("0-17", "18-64", "65+"))]
+DT[, classe_eta, sesso]
+conteggi <- DT[, .N, by = .(sesso, classe_eta)]
+conteggi
+tabella  <- dcast(conteggi, sesso ~ classe_eta, value.var = "N", fill = 0)
+tabella
+```
+
+## Percentages
+
+```{r}
+#| label: percentages
+DT <- copy(DT_base)
+DT[, classe_eta := cut(eta, breaks = c(-Inf, 17, 64, Inf),
+                       labels = c("0-17", "18-64", "65+"))]
+
+# Percentage within each sex
+DT[, .(n = .N), by = .(sesso, classe_eta)
+   ][, perc := 100 * n / sum(n), by = sesso] []
+
+# Percentage of the overall total
+DT[, .(n = .N), by = .(sesso, classe_eta)
+   ][, perc := 100 * n / sum(n)] []
+
+# [] : imprime le resultat
+
+
+# Calcolo percentuali sul totale generale + dcast immediato
+DT[, .(n = .N), by = .(sesso, classe_eta)
+][, perc := 100 * n / sum(n)
+][, dcast(.SD, sesso ~ classe_eta, value.var = "perc", fill = 0)]
+```
+
+Always define the denominator: overall total, row, column, or subpopulation.
+
+## More elaborate tables, similar to PROC TABULATE
+
+```{r}
+#| label: elaborate-table
+DT <- copy(DT_base)
+DT[, classe_eta := cut(eta, breaks = c(-Inf, 17, 64, Inf),
+                       labels = c("0-17", "18-64", "65+"))]
+
+tab_lunga <- DT[
+  ,
+  .(
+    n     = .N,
+    media = mean(valore, na.rm = TRUE),
+    somma = sum(valore, na.rm = TRUE)
+  ),
+  by = .(cantone, sesso, classe_eta)
+]
+tab_lunga
+
+tab_wide <- dcast(
+  tab_lunga,
+  cantone + sesso ~ classe_eta,
+  value.var = "n",
+  fill = 0
+)
+
+tab_wide
+```
+
+For publication tables, separating calculation (`data.table`) from presentation (`gt`, `flextable`, `kable`, or
+similar tools) improves maintainability and control.
+
+# Joins in data.table
+
+## Left join
+
+```{r}
+#| label: left-join
+# Keep all rows of transazioni; add matching rows from anagrafica
+transazioni <- data.table(
+  id_trans = c(1L, 2L, 2L, 4L, 5L),
+  anno_ref = c(2023L, 2024L, 2024L, 2025L, 2025L),
+  importo  = c(10, 20, 30, 40, 50)
+)
+
+anagrafica
+transazioni
+
+#ris <- anagrafica[transazioni, on = "id"]
+ris <- anagrafica[transazioni, on = c("id" = "id_trans")]  
+ris
+```
+
+In the syntax `x[i, on = ...]`, `i` (here `transazioni`) determines the result rows, while `x` (here `anagrafica`)
+supplies matched columns.
+
+## Inner join
+
+```{r}
+#| label: inner-join
+transazioni <- data.table(
+  id = c(1L, 2L, 2L, 4L, 5L),
+  anno_ref = c(2023L, 2024L, 2024L, 2025L, 2025L),
+  importo  = c(10, 20, 30, 40, 50)
+)
+
+ris <- anagrafica[transazioni, on = "id", nomatch = NULL]
+print(ris)
+```
+
+## Full join
+
+```{r}
+#| label: full-join
+ris <- merge(anagrafica, transazioni, by = "id", all = TRUE)
+print(ris)
+```
+
+## Anti-join: rows without a match
+
+```{r}
+#| label: anti-join
+non_trovati <- anagrafica[!transazioni, on = "id"]
+print(non_trovati)
+```
+
+## Join on multiple columns and different names
+
+```{r}
+#| label: multi-key-join
+
+transazioni <- data.table(
+  id_trans = c(1L, 2L, 2L, 4L, 5L),
+  anno_ref = c(2023L, 2024L, 2024L, 2025L, 2025L),
+  importo  = c(10, 20, 30, 40, 50)
+)
+
+ris <- anagrafica[
+  transazioni,
+  on = .(id = id_trans)
+]
+print(ris)
+```
+
+## Update join
+
+An update join (or UPDATE with JOIN) is a database query that modifies or populates columns in one table using
+related data from a second table based on a matching key or condition. Instead of writing a slow row-by-row loop or
+a complex subquery, an update join lets you sync or calculate values across tables in a single operation.
+
+## Normal Join vs. Update Join in data.table
+
+The choice between a normal join and an update join in `data.table` depends entirely on whether you want to
+**create a new dataset** or **modify an existing one in place**.
+
+### Normal Join (New Dataset)
+
+A **normal join** merges two datasets together and returns a **completely new object** in memory.
+
+- **Behavior**: It copies rows and columns from both tables into a third table. The original input dataframes
+  remain untouched.
+- **Syntax**: `ris <- anagrafica[transazioni, on = .(id = id_trans)]`
+- **Use Case**: Best when you need a temporary merged view for a specific analysis, reporting, or when you want to
+  preserve your original source data as-is.
+
+### Update Join (In-Place Modification)
+
+An **update join** uses data from a lookup table to **modify or add columns directly inside your main table**.
+
+- **Behavior**: It updates the data **by reference** using the `:=` operator. This means it consumes **zero extra
+  memory (RAM)** because it does not make a copy of the dataset. The primary table is permanently altered.
+- **Syntax**: `transazioni[anagrafica, on = .(id_trans = id), cliente := i.cliente]` *(Note: the `i.` prefix
+  explicitly tells R to pull the column from the lookup table inside the bracket).*
+- **Use Case**: Essential when working with large/Big Data datasets where copying millions of rows would cause
+  memory issues, or when your goal is to clean/enrich an existing historical log table.
+
+```{r}
+#| label: update-join
+anagrafica_upd <- copy(anagrafica)
+tabella_ref <- data.table(id = c(1L, 3L), classe = c("X", "Y"))
+
+anagrafica_upd[
+  tabella_ref,
+  on = "id",
+  classe := i.classe
+]
+print(anagrafica_upd)
+```
+
+Watch join cardinality: if the lookup table contains multiple rows per key, the join can multiply rows. Check
+beforehand:
+
+```{r}
+#| label: cardinality-check
+tabella_ref_multi <- data.table(id = c(1L, 1L, 3L), classe = c("X", "Z", "Y"))
+
+tabella_ref_multi
+
+tabella_ref_multi[, .N, by = id][N > 1L]
+```
+
+# SAS DATA STEP → data.table equivalents
+
+| SAS              | data.table                      |
+|------------------|---------------------------------|
+| `SET dati;`      | `DT`                            |
+| `IF condizione;` | `DT[condizione]`                |
+| `KEEP a b;`      | `DT[, .(a, b)]`                 |
+| `DROP a;`        | `DT[, !("a"), with = FALSE]`    |
+| `a = b + c;`     | `DT[, a := b + c]`              |
+| `BY gruppo;`     | `by = "gruppo"` in aggregations |
+| `FIRST.gruppo`   | `DT[, .SD[1L], by = gruppo]`    |
+| `LAST.gruppo`    | `DT[, .SD[.N], by = gruppo]`    |
+| `OUTPUT`         | explicit result / `rbindlist()` |
+| `PROC SORT`      | `setorder()`                    |
+
+## `RETAIN`: state across observations
+
+`RETAIN` is one of the most important conceptual differences: in SAS a variable can keep the value from the
+previous observation. In R, express the transformation explicitly, often with vectorized functions.
+
+### Carry the last non-missing value forward (LOCF)
+
+```{r}
+#| label: locf
+DT <- copy(DT_base)
+setorder(DT, id, anno)
+DT[, valore_riportato := nafill(importo, type = "locf"), by = id]
+print(DT[, .(id, anno, importo, valore_riportato)])
+```
+
+`nafill()` works on numeric/integer vectors; for other types, consider `zoo::na.locf()` or a dedicated function.
+
+### Cumulative sum
+
+```{r}
+#| label: cumsum
+DT <- copy(DT_base)
+setorder(DT, id, anno)
+DT[, cumulato := cumsum(fcoalesce(importo, 0)), by = id]
+print(DT[, .(id, anno, importo, cumulato)])
+```
+
+Replacing missing values with zero must match the semantics of the original SAS program.
+
+### Counter within a group
+
+```{r}
+#| label: counter
+DT <- copy(DT_base)
+setorder(DT, id, anno)
+DT[, progressivo := seq_len(.N), by = id]
+print(DT[, .(id, anno, progressivo)])
+```
+
+### Previous value
+
+```{r}
+#| label: shift
+DT <- copy(DT_base)
+setorder(DT, id, anno)
+DT[, valore_precedente := shift(importo), by = id]
+print(DT[, .(id, anno, importo, valore_precedente)])
+```
+
+`shift()` is vectorized and does not automatically reproduce every detail of the SAS `LAG()` queue. In SAS, `LAG()`
+executes when called, so conditional calls can differ from a simple shift.
+
+### Complex conditional state
+
+When logic depends on several state variables and on row order, a sequential scan may be clearer. Sort the data
+first, then implement the state transition explicitly; avoid mechanically translating `RETAIN` without checking
+order and missing-value handling.
+
+# PROC SQL → data.table equivalents
+
+## SELECT, WHERE, and ORDER BY
+
+``` sql
+/* SAS PROC SQL */
+select id, valore
+from dati
+where anno = 2025
+order by valore desc;
+```
+
+```{r}
+#| label: select-where-order
+DT <- copy(DT_base)
+DT[anno == 2025, .(id, valore)][order(-valore)]
+```
+
+## GROUP BY and HAVING
+
+``` sql
+select cantone, sum(valore) as totale
+from dati
+group by cantone
+having calculated totale > 100;
+```
+
+```{r}
+#| label: group-having
+DT <- copy(DT_base)
+DT[, .(totale = sum(valore, na.rm = TRUE)), by = cantone][totale > 100]
+```
+
+In SAS, `CALCULATED` lets you refer to a just-computed expression. In `data.table`, filter the result of the query.
+
+## CASE WHEN
+
+``` sql
+case
+  when valore < 0 then "negativo"
+  when valore = 0 then "zero"
+  else "positivo"
+end
+```
+
+```{r}
+#| label: case-when
+DT <- copy(DT_base)
+DT[, classe := fcase(
+  valore < 0, "negativo",
+  valore == 0, "zero",
+  default = "positivo"
+)]
+print(DT[, .(id, valore, classe)])
+```
+
+Handle missing values explicitly if they need a separate category.
+
+## SQL joins
+
+| SQL                      | data.table                                                           |
+|--------------------------|----------------------------------------------------------------------|
+| `LEFT JOIN`              | `y[x, on=...]` or `x[y, on=...]`, depending on the table to preserve |
+| `INNER JOIN`             | join with `nomatch = NULL`                                           |
+| `FULL JOIN`              | `merge(..., all = TRUE)`                                             |
+| `NOT EXISTS` / anti-join | `x[!y, on=...]`                                                      |
+
+Example of a left join preserving all rows of `fatti`:
+
+```{r}
+#| label: left-join-direction
+fatti      <- transazioni
+dimensione <- anagrafica
+ris <- dimensione[fatti, on = c("id" = "id_trans")]
+print(ris)
+```
+
+The direction is essential: in `x[i]`, `i` determines the result rows, while `x` supplies matched columns.
+
+## UNION
+
+```{r}
+#| label: union
+DT1 <- data.table(id = 1:3, x = c(10, 20, 30))
+DT2 <- data.table(id = 3:5, x = c(30, 40, 50))
+
+# UNION ALL: keeps duplicates
+ris_all <- rbindlist(list(DT1, DT2), use.names = TRUE, fill = TRUE)
+print(ris_all)
+
+# UNION: removes duplicates
+ris_uniq <- unique(rbindlist(list(DT1, DT2), use.names = TRUE, fill = TRUE))
+print(ris_uniq)
+```
+
+Check column and type handling explicitly, especially when the two sources have different schemas.
+
+# PROC FORMAT → data.table
+
+`PROC FORMAT` defines mappings between codes/values and text categories or ranges. In R, represent a format as a
+factor, a recoding function, or a lookup table.
+
+## Discrete format: VALUE
+
+SAS:
+
+``` sas
+proc format;
+  value sexfmt
+    1 = "Uomo"
+    2 = "Donna"
+    other = "Non specificato";
+run;
+```
+
+In R:
+
+```{r}
+#| label: discrete-format-fcase
+DT <- copy(DT_base)
+DT[, sesso_label := fcase(
+  sesso == 1L, "Uomo",
+  sesso == 2L, "Donna",
+  default     = "Non specificato"
+)]
+print(DT[, .(id, sesso, sesso_label)])
+```
+
+If you want a categorical variable with controlled levels:
+
+```{r}
+#| label: discrete-format-factor
+DT <- copy(DT_base)
+DT[, sesso_factor := factor(
+  sesso,
+  levels = c(1, 2),
+  labels = c("Uomo", "Donna")
+)]
+print(DT[, .(id, sesso, sesso_factor)])
+```
+
+`factor()` does not automatically assign an `OTHER` label: codes outside the specified levels become `NA`. To
+retain a residual category, recode explicitly before creating the factor.
+
+## Numeric range formats
+
+Conceptual example: age groups.
+
+```{r}
+#| label: range-format-fcase
+DT <- copy(DT_base)
+DT[, classe_eta := fcase(
+  is.na(eta), "Mancante",
+  eta < 18,   "0-17",
+  eta < 65,   "18-64",
+  eta >= 65,  "65+"
+)]
+print(DT[, .(id, eta, classe_eta)])
+```
+
+With `cut()`:
+
+```{r}
+#| label: range-format-cut
+DT <- copy(DT_base)
+DT[, classe_eta := cut(
+  eta,
+  breaks = c(-Inf, 17, 64, Inf),
+  labels = c("0-17", "18-64", "65+"),
+  right  = TRUE
+)]
+print(DT[, .(id, eta, classe_eta)])
+```
+
+Check interval endpoints carefully: SAS supports ranges and inclusion options that may not match `cut()` defaults.
+Handle missing values explicitly as well.
+
+## Complex formats: lookup table
+
+For long formats or catalog-driven formats, a lookup table is often preferable:
+
+```{r}
+#| label: lookup-format
+DT <- copy(DT_base)
+formato <- data.table(
+  codice = c(1L, 2L, 3L),
+  label  = c("Uomo", "Donna", "Altro")
+)
+
+DT[formato, sesso_label := i.label, on = .(sesso = codice)]
+DT[is.na(sesso_label), sesso_label := "Non classificato"]
+print(DT[, .(id, sesso, sesso_label)])
+```
+
+A lookup table is useful for: managing large format catalogs; versioning code mappings; checking unmapped values;
+reusing the same format across programs.
+
+## SAS and R missing values
+
+SAS distinguishes the ordinary numeric missing `.` from special missings `.A`–`.Z` (and `._`). In R, the standard
+value is `NA` and `NaN` has a distinct semantics, but it does not directly represent the whole set of SAS special
+missings.
+
+If such distinctions have statistical or administrative meaning, preserve them during import with an explicit
+coding (for example a status variable or a textual representation) before normalizing values.
+
+## `PUT()` and `INPUT()`
+
+- SAS `PUT()` applies a format and returns a representation, often character.
+- SAS `INPUT()` reads a string using an informat and converts the value.
+
+In R, the equivalent depends on the format: lookup tables or `fcase()` for discrete codes; `as.integer()`,
+`as.numeric()`, or parsing functions for conversions; `format()` for text representations — do not assume it
+reproduces every SAS format.
+
+# Labels and data dictionary
+
+For migration projects, distinguish: 1. **variable name**; 2. **descriptive label**; 3. **value coding**; 4.
+**source type and format**; 5. **missing-value rules**.
+
+A metadata table might contain these columns:
+
+```{r}
+#| label: metadata-table
+metadata <- data.table(
+  variabile = c("sesso", "eta"),
+  label     = c("Sesso", "Età in anni"),
+  tipo      = c("integer", "integer"),
+  formato   = c("sexfmt", "agefmt")
+)
+metadata
+```
+
+R attributes are convenient in memory but are not always preserved in CSV files, databases, or transformation
+pipelines. An explicit dictionary is often more robust.
+
+# Output tables and flextable
+
+`data.table` is designed for computation and transformation. `flextable` is designed for table presentation, for
+example in Word or PowerPoint. They are complementary: calculate with `data.table`, then format the result.
+
+```{r}
+#| label: output-table
+DT <- copy(DT_base)
+
+tab <- DT[, .(
+  n     = .N,
+  media = mean(valore, na.rm = TRUE)
+), by = .(cantone, anno)]
+
+print(tab)
+
+# Formatting can be applied afterwards with flextable:
+# library(flextable)
+# ft <- flextable(tab)
+```
+
+For publication tables, also plan for: category order and labels; percentage denominator; missing-value handling;
+suppression or flagging of small counts; number and total formatting; export and reproducibility.
+
+# Checklist for a SAS → data.table migration
+
+1.  **Data order**: check every `BY`, `FIRST.`/`LAST.`, `LAG()`, and `RETAIN`.
+2.  **Missing values**: compare SAS `.` and special missing values with R `NA`/`NaN`.
+3.  **Joins**: check key cardinality and duplicates.
+4.  **Types**: check character/numeric/date conversions and overflow.
+5.  **Formats**: distinguish data coding from display labels.
+6.  **Aggregations**: verify denominators and missing-value behavior.
+7.  **Output**: compare SAS and R results on validation samples and edge cases.
+8.  **Performance**: use `:=`, `setorder()`, keyed joins, and grouped aggregations; avoid unnecessary copies.
+
+# Quick reference
+
+| Goal                     | data.table idiom                   |
+|--------------------------|------------------------------------|
+| Filter rows              | `DT[condizione]`                   |
+| Select columns           | `DT[, .(a, b)]`                    |
+| Dynamic selection        | `DT[, ..cols]`                     |
+| Create/modify columns    | `DT[, nuova := espressione]`       |
+| Aggregate                | `DT[, .(stat = ...), by = gruppo]` |
+| Count rows               | `.N`                               |
+| Carry last value forward | `nafill(x, "locf")`                |
+| Previous value           | `shift(x)`                         |
+| Join                     | `x[i, on = "chiave"]`              |
+| Anti-join                | `x[!i, on = "chiave"]`             |
+| Long-to-wide pivot       | `dcast()`                          |
+| Wide-to-long pivot       | `melt()`                           |
+| Sort by reference        | `setorder()`                       |
+| Recode categories        | `fcase()` / lookup                 |
+| Presentation tables      | `flextable` after calculation      |

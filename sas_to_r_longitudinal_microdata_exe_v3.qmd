@@ -1,0 +1,1837 @@
+---
+title: "SAS to R: Longitudinal Microdata Processing"
+subtitle: "A practical equivalence guide for within-individual calculations using data.table, dplyr, and base R"
+author: "Francesco Laganà"
+date: today
+lang: en
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-copy: true
+    df-print: paged
+  docx:
+    toc: true
+    number-sections: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+# Purpose and scope
+
+This guide compares common SAS DATA-step patterns for longitudinal microdata with R implementations using **data.table**, **dplyr**, and **base R**. The emphasis is on calculations performed *within individuals over time*: ordering records, retaining values, identifying the first and last observation, comparing adjacent waves, constructing spells, detecting transitions, and summarising individual histories.
+
+The examples use one row per individual and observation period, unless stated otherwise. Replace `id`, `year`, and the example variables with the names used in your production data.
+
+```{r}
+#| label: setup
+library(data.table)
+library(dplyr)
+```
+
+## The central conceptual difference
+
+A SAS DATA step processes observations sequentially. A `RETAIN` statement can carry a value from one iteration to the next, while `FIRST.variable` and `LAST.variable` are temporary indicators created by a `BY` statement.
+
+In R, the same result is usually expressed by making the order explicit and then using one of these approaches:
+
+-   **data.table:** `setorder()`, `by = id`, `shift()`, `cum*()` functions, and grouped expressions.
+-   **dplyr:** `arrange()`, `group_by(id)`, `lag()`, `lead()`, `cum*()` functions, and grouped expressions.
+-   **base R:** `order()`, `ave()`, `split()`/`lapply()`, `Reduce()`, `rle()`, `diff()`, and explicit `for` loops when state matters.
+-   **Either package:** an explicit stateful loop or a purpose-built function when the logic genuinely depends on a sequential state machine.
+
+Most longitudinal tasks do not need a row-by-row loop in R. Grouped vector operations are generally clearer and faster. Base R can express all the same operations, though sometimes with more boilerplate.
+
+# Example data and ordering
+
+```{r}
+#| label: example-data
+DT <- data.table(
+  id     = c(101, 101, 101, 102, 102, 103, 103, 103),
+  year   = c(2020, 2021, 2023, 2020, 2022, 2019, 2020, 2021),
+  status = c("A", "A", "B", "B", "B", "A", "B", "B"),
+  income = c(3000, 3200, 3500, 2800, NA, 2500, 2700, 2900),
+  weight = c(1.0, 1.1, 1.2, 0.9, 1.0, 1.0, 1.0, 1.0)
+)
+
+setorder(DT, id, year)
+DT
+```
+
+Equivalent dplyr setup:
+
+```{r}
+#| label: example-dplyr
+df <- DT |>
+  as_tibble() |>
+  arrange(id, year)
+
+df
+```
+
+Equivalent base R setup (a plain data frame, kept alongside for later chunks):
+
+```{r}
+#| label: example-base
+df_base <- as.data.frame(DT)
+df_base <- df_base[order(df_base$id, df_base$year), ]
+rownames(df_base) <- NULL
+df_base
+```
+
+**Always define the ordering variable(s).** SAS `BY id year;` depends on the data being sorted by those variables. In R, `lag()` and `shift()` use the current row order; they do not automatically sort data.
+
+If ties are possible, add a deterministic tie-breaker, such as a wave number, interview date, or record sequence.
+
+# SAS `BY`, `FIRST.` and `LAST.`
+
+## What SAS creates
+
+``` sas
+proc sort data=have;
+  by id year;
+run;
+
+data want;
+  set have;
+  by id;
+  if first.id then first_record = 1;
+  else first_record = 0;
+
+  if last.id then last_record = 1;
+  else last_record = 0;
+run;
+```
+
+`FIRST.id` is 1 on the first observation in each `id` group; `LAST.id` is 1 on the last. SAS also creates indicators for each variable in a multi-variable `BY` list. For `by id year;`, `FIRST.year` marks the first record for each `id`-`year` BY group, and `FIRST.id` also becomes 1 at the start of a new individual. The precise boundary behaviour follows the BY-group hierarchy.
+
+## data.table equivalent
+
+```{r}
+#| label: first-last-dt
+DT[, `:=`(
+  first_record = seq_len(.N) == 1L,
+  last_record  = seq_len(.N) == .N
+), by = id]
+
+DT
+```
+
+To mark first and last rows within each `id`-`year` group (usually meaningful only if there are additional records within a year):
+
+```{r}
+#| label: first-last-id-year-dt
+DT[, `:=`(
+  first_id_year = seq_len(.N) == 1L,
+  last_id_year  = seq_len(.N) == .N
+), by = .(id, year)]
+
+DT[, c("id", "year", "first_id_year", "last_id_year"), with = FALSE]
+```
+
+## dplyr equivalent
+
+```{r}
+#| label: first-last-dplyr
+df <- DT |>
+  as_tibble() |>
+  arrange(id, year)
+
+df
+
+df <- df |>
+  group_by(id) |>
+  mutate(
+    first_record = row_number() == 1L,
+    last_record  = row_number() == n()
+  ) |>
+  ungroup()
+```
+
+Within an `id`-`year` group:
+
+```{r}
+#| label: first-last-id-year-dplyr
+df |>
+  group_by(id, year) |>
+  mutate(
+    first_id_year = row_number() == 1L,
+    last_id_year  = row_number() == n()
+  ) |>
+  ungroup()
+```
+
+## base R equivalent
+
+Base R has no `row_number()`/`.N` inside a `by=`. Two common idioms:
+
+-   **`ave()`** applies a function per group and returns a vector aligned with the rows. `ave(seq_len(n), id, FUN = seq_along)` gives the within-group position.
+-   **`split()` + `lapply()` + `unsplit()` / `do.call(rbind, ...)`** gives explicit group handling.
+
+```{r}
+#| label: first-last-base
+df_base$first_record <- ave(seq_len(nrow(df_base)), df_base$id,
+                            FUN = function(i) i == i[1])
+df_base$last_record  <- ave(seq_len(nrow(df_base)), df_base$id,
+                            FUN = function(i) i == i[length(i)])
+
+df_base[, c("id", "year", "first_record", "last_record")]
+```
+
+Within `id`-`year`:
+
+```{r}
+#| label: first-last-id-year-base
+grp <- interaction(df_base$id, df_base$year, drop = TRUE)
+df_base$first_id_year <- ave(seq_len(nrow(df_base)), grp,
+                             FUN = function(i) i == i[1])
+df_base$last_id_year  <- ave(seq_len(nrow(df_base)), grp,
+                             FUN = function(i) i == i[length(i)])
+
+df_base[, c("id", "year", "first_id_year", "last_id_year")]
+```
+
+`ave()` is the base R equivalent of “grouped mutate returning a vector”.
+
+## Keep only the first or last record
+
+SAS:
+
+``` sas
+data firsts;
+  set have;
+  by id;
+  if first.id;
+run;
+
+data lasts;
+  set have;
+  by id;
+  if last.id;
+run;
+```
+
+data.table:
+
+```{r}
+#| label: firsts-lasts-dt
+firsts <- DT[, .SD[1L], by = id]
+lasts  <- DT[, .SD[.N], by = id]
+
+firsts
+```
+
+```{r}
+#| label: lasts-dt
+lasts
+```
+
+dplyr:
+
+```{r}
+#| label: firsts-lasts-dplyr
+firsts <- df |> group_by(id) |> slice_head(n = 1) |> ungroup()
+lasts  <- df |> group_by(id) |> slice_tail(n = 1) |> ungroup()
+firsts
+```
+
+```{r}
+#| label: lasts-dplyr
+lasts
+```
+
+base R:
+
+```{r}
+#| label: firsts-lasts-base
+firsts <- df_base[df_base$first_record, ]
+lasts  <- df_base[df_base$last_record, ]
+
+firsts[, c("id", "year", "income")]
+lasts[,  c("id", "year", "income")]
+```
+
+These examples assume that the data has already been sorted into the intended chronological order.
+
+## Counter by group
+
+```{r}
+DT <- data.table(
+  gruppo = c("A", "A", "A", "B", "B", "C", "C", "C"),
+  valore = 1:8,
+  anno = rep(seq(from = 2012, to = 2013, by = 1), 4)
+)
+
+DT[, counter := seq_len(.N), by = gruppo]
+DT
+```
+
+## Counter by multiple grouping variables
+
+```{r}
+DT[, counter := seq_len(.N), by = .(gruppo, anno)]
+DT
+```
+
+## Alternative with `rowid()` for runs of identical values
+
+```{r}
+DT[, counter := rowid(gruppo)]
+```
+
+... or multiple grouping variables:
+
+```{r}
+DT[, counter := rowid(gruppo, anno)]
+```
+
+## Counter for all dataset
+
+```{r}
+DT[, id := .I]
+```
+
+```{r}
+DT[, id := seq_len(.N)]
+```
+
+```{r}
+library(data.table)
+
+DT <- data.table(
+  nome = c("A", "B", "C", "D"),
+  valore = c(10, 20, 30, 40)
+)
+
+DT[, id := .I]
+
+print(DT)
+```
+
+## Equivalent of PROC SQL `select *, max(var) as max_var ... group by id` in R
+
+```{r}
+DT <- data.table(
+  id = c(1, 1, 1, 2, 2, 3),
+  var = c(10, 20, 15, 5, 8, 12)
+)
+
+DT[, max_var := max(var), by = id]
+DT
+```
+
+if you want only a line per group:
+
+```{r}
+DT[, .(max_var = max(var)), by = id][]
+```
+
+# `RETAIN`: carry a value across observations
+
+## The SAS pattern
+
+`RETAIN` prevents a DATA-step variable from being reset to missing at the start of each iteration. It is often used for previous values, running totals, state flags, and spell identifiers.
+
+``` sas
+data want;
+  set have;
+  by id year;
+  retain previous_income;
+
+  if first.id then previous_income = .;
+  else previous_income = lag(income);
+run;
+```
+
+This particular example is not a robust general template: SAS `LAG()` is a queue function, not a simple “previous row” operator, and conditional calls can produce surprising results. For previous-row calculations, use a carefully controlled `LAG()` pattern or an explicit retained variable.
+
+A direct retained-value pattern is:
+
+``` sas
+data want;
+  set have;
+  by id year;
+  retain previous_income;
+
+  if first.id then previous_income = .;
+  output;
+  previous_income = income;
+run;
+```
+
+The `OUTPUT` occurs before updating `previous_income`, so the output row contains the previous record's value. If you want to update before output, change the order deliberately.
+
+## data.table: `shift()`
+
+```{r}
+#| label: shift-dt
+
+DT <- data.table(
+  id     = c(101, 101, 101, 102, 102, 103, 103, 103),
+  year   = c(2020, 2021, 2023, 2020, 2022, 2019, 2020, 2021),
+  status = c("A", "A", "B", "B", "B", "A", "B", "B"),
+  income = c(3000, 3200, 3500, 2800, NA, 2500, 2700, 2900),
+  weight = c(1.0, 1.1, 1.2, 0.9, 1.0, 1.0, 1.0, 1.0)
+)
+
+setorder(DT, id, year)
+DT
+
+DT[, previous_income := shift(income), by = id]
+DT[, c("id", "year", "income", "previous_income")]
+```
+
+By default, `shift()` returns the lagged value (`n = 1`, `type = "lag"`). The first row in each individual has `NA`. For the next observation:
+
+```{r}
+#| label: shift-lead-dt
+DT[, next_income := shift(income, type = "lead"), by = id]
+DT[, c("id", "year", "income", "previous_income", "next_income")]
+```
+
+## dplyr: `lag()` and `lead()`
+
+```{r}
+#| label: lag-lead-dplyr
+df |>
+  group_by(id) |>
+  mutate(
+    previous_income = lag(income),
+    next_income     = lead(income)
+  ) |>
+  ungroup() |> 
+  select(id, year, income, previous_income, next_income)
+```
+
+## base R: `ave()` with a custom shift, or manual indexing
+
+Base R has no grouped `shift()`/`lag()`. The simplest base R idiom is `ave()` with a function that returns a padded vector:
+
+```{r}
+#| label: shift-base
+shift_vec <- function(x, n = 1L, type = c("lag", "lead")) {
+  type <- match.arg(type)
+  len <- length(x)
+  if (type == "lag") c(rep(NA, n), x[seq_len(len - n)]) else
+                     c(x[-seq_len(n)], rep(NA, n))
+}
+
+df_base$previous_income <- ave(df_base$income, df_base$id,
+                               FUN = shift_vec, n = 1L, type = "lag")
+df_base$next_income     <- ave(df_base$income, df_base$id,
+                               FUN = shift_vec, n = 1L, type = "lead")
+
+df_base[, c("id", "year", "income", "previous_income", "next_income")]
+```
+
+`ave()` requires the function to return a vector of the same length as the group, which is why `shift_vec` pads with `NA`.
+
+**Mapping:** a retained “previous observation” is usually a grouped `shift()` in data.table, grouped `lag()` in dplyr, or grouped `ave(..., FUN = shift_vec)` in base R. It is not necessary to reproduce SAS's execution model literally.
+
+# Running totals and cumulative calculations
+
+## Running total within each individual
+
+SAS:
+
+``` sas
+data want;
+  set have;
+  by id;
+  retain cumulative_income;
+  if first.id then cumulative_income = 0;
+  cumulative_income + income;
+run;
+```
+
+The SAS sum statement `cumulative_income + income;` retains the accumulator and treats a missing summand as zero.
+
+data.table:
+
+```{r}
+#| label: cumsum-dt
+DT[, cumulative_income := cumsum(fcoalesce(income, 0)), by = id]
+DT[, .(id, year, income, cumulative_income)]
+```
+
+dplyr:
+
+```{r}
+#| label: cumsum-dplyr
+df |>
+  group_by(id) |>
+  mutate(cumulative_income = cumsum(coalesce(income, 0))) |>
+  ungroup() |> 
+  select(id, year, income, cumulative_income)
+```
+
+base R:
+
+```{r}
+#| label: cumsum-base
+df_base$cumulative_income <- ave(df_base$income, df_base$id,
+                                 FUN = function(x) cumsum(ifelse(is.na(x), 0, x)))
+df_base[, c("id", "year", "income", "cumulative_income")]
+```
+
+`ifelse(is.na(x), 0, x)` is the base R equivalent of `fcoalesce()` / `coalesce()` for this purpose.
+
+The missing-value treatment must be intentional. In R, `cumsum(income)` propagates `NA` from the first missing value onward. Use `coalesce(income, 0)` only if missing income should contribute zero. If missing means “unknown”, retain missingness or define a separate policy.
+
+## Running count of non-missing values
+
+data.table:
+
+```{r}
+#| label: cumsum-obs-dt
+DT[, n_income_observed := cumsum(!is.na(income)), by = id]
+DT[, .(id, year, income, n_income_observed)]
+```
+
+dplyr:
+
+```{r}
+#| label: cumsum-obs-dplyr
+df |>
+  group_by(id) |>
+  mutate(n_income_observed = cumsum(!is.na(income))) |>
+  ungroup() |> 
+  select(id, year, income, n_income_observed)
+```
+
+base R:
+
+```{r}
+#| label: cumsum-obs-base
+df_base$n_income_observed <- ave(df_base$income, df_base$id,
+                                 FUN = function(x) cumsum(!is.na(x)))
+df_base[, c("id", "year",  "income", "n_income_observed")]
+```
+
+## Running maximum or minimum
+
+```{r}
+#| label: cummax-dt
+DT[, max_income_to_date := cummax(income), by = id]
+DT[, min_income_to_date := cummin(income), by = id]
+DT[, .(id, year, income, max_income_to_date, min_income_to_date)]
+```
+
+```{r}
+#| label: cummax-dplyr
+df |>
+  group_by(id) |>
+  mutate(
+    max_income_to_date = cummax(income),
+    min_income_to_date = cummin(income)
+  ) |>
+  ungroup()
+```
+
+base R:
+
+```{r}
+#| label: cummax-base
+df_base$max_income_to_date <- ave(df_base$income, df_base$id, FUN = cummax)
+df_base$min_income_to_date <- ave(df_base$income, df_base$id, FUN = cummin)
+df_base[, c("id", "year", "max_income_to_date", "min_income_to_date")]
+```
+
+For numeric vectors containing missing values, decide how `NA` should affect the running statistic before using `cummax()` or `cummin()`.
+
+# Comparing the current record with the previous record
+
+## Difference from previous wave
+
+SAS:
+
+``` sas
+data want;
+  set have;
+  by id year;
+  retain previous_income;
+
+  if first.id then change_income = .;
+  else change_income = income - previous_income;
+
+  previous_income = income;
+run;
+```
+
+data.table:
+
+```{r}
+#| label: change-dt
+DT[, change_income := income - shift(income), by = id]
+DT[, .(id, year, income, previous_income, change_income)]
+```
+
+dplyr:
+
+```{r}
+#| label: change-dplyr
+df |>
+  group_by(id) |>
+  mutate(change_income = income - lag(income)) |>
+  ungroup() |> 
+  select(id, year, income, change_income)
+```
+
+base R:
+
+```{r}
+#| label: change-base
+df_base$change_income <- ave(df_base$income, df_base$id,
+                             FUN = function(x) x - shift_vec(x))
+df_base[, c("id", "year", "income", "change_income")]
+```
+
+This compares adjacent **records**, not necessarily adjacent calendar years. For example, 2021 to 2023 is a two-year gap. If you need year-to-year change only when years are consecutive:
+
+```{r}
+#| label: change-annual-dt
+DT[, change_income_annual := fifelse(
+  year - shift(year) == 1L,
+  income - shift(income),
+  NA_real_
+), by = id]
+
+DT[, .(id, year, income, previous_income, change_income_annual)]
+```
+
+```{r}
+#| label: change-annual-dplyr
+df |>
+  group_by(id) |>
+  mutate(
+    change_income_annual = if_else(
+      year - lag(year) == 1L,
+      income - lag(income),
+      NA_real_,
+      missing = NA_real_
+    )
+  ) |>
+  ungroup()
+```
+
+base R:
+
+```{r}
+#| label: change-annual-base
+df_base$change_income_annual <- ave(
+  df_base$income,
+  df_base$id,
+  FUN = function(x) {
+    prev_income <- shift_vec(x)
+    prev_year   <- shift_vec(df_base$year[match(seq_along(x), seq_along(x))])
+    NA_real_
+  }
+)
+# Simpler and clearer for base R: split, compute, recombine
+df_base$change_income_annual <- NA_real_
+for (i in unique(df_base$id)) {
+  idx <- which(df_base$id == i)
+  yrs <- df_base$year[idx]
+  inc <- df_base$income[idx]
+  chg <- rep(NA_real_, length(idx))
+  if (length(idx) > 1L) {
+    consecutive <- (yrs[-1] - yrs[-length(yrs)]) == 1L
+    chg[-1] <- ifelse(consecutive, inc[-1] - inc[-length(inc)], NA_real_)
+  }
+  df_base$change_income_annual[idx] <- chg
+}
+df_base[, c("id", "year", "income", "change_income_annual")]
+```
+
+## Flag a change in categorical status
+
+SAS:
+
+``` sas
+data want;
+  set have;
+  by id year;
+  retain previous_status;
+
+  if first.id then status_changed = 0;
+  else status_changed = (status ne previous_status);
+
+  previous_status = status;
+run;
+```
+
+data.table:
+
+```{r}
+#| label: status-change-dt
+DT[, status_changed := !is.na(shift(status)) & status != shift(status), by = id]
+
+DT[, .(id, year, status, status_changed)]
+```
+
+dplyr:
+
+```{r}
+#| label: status-change-dplyr
+df |>
+  group_by(id) |>
+  mutate(status_changed = !is.na(lag(status)) & status != lag(status)) |>
+  ungroup()
+```
+
+base R:
+
+```{r}
+#| label: status-change-base
+df_base$status_changed <- ave(df_base$status, df_base$id, FUN = function(x) {
+  prev <- shift_vec(x)
+  !is.na(prev) & !is.na(x) & x != prev
+})
+df_base[, c("id", "year", "status", "status_changed")]
+```
+
+This treats the first record as “not changed”. If the first record should instead be unknown, use `NA` for the first row. Also decide how to handle missing status: a transition from missing to observed may be meaningful or may be classified as unknown.
+
+# Detecting first occurrence, last occurrence, and extrema
+
+## First observed non-missing value per individual
+
+data.table:
+
+```{r}
+#| label: first-obs-dt
+DT[, first_observed_income := {
+  x <- income[!is.na(income)]
+  if (length(x)) x[1L] else NA_real_
+}, by = id]
+DT[, .(id, year, income, first_observed_income)]
+```
+
+This `data.table` syntax in R creates a new column called `first_observed_income` that stores the **very first non-missing (`NA`) income value for each individual (`id`)**.
+
+Here is the step-by-step breakdown of how it works:
+
+-   **`DT[, ... , by = id]`**: This groups the data by the `id` column. The code inside the braces `{}` is executed separately for each unique ID.
+
+-   **`first_observed_income :=`**: The `:=` operator adds (or updates) the column in-place without copying the entire data frame in memory.
+
+-   **`x <- income[!is.na(income)]`**: Inside the group, it filters out all `NA` values from the `income` column and assigns the remaining valid incomes to a temporary variable `x`.
+
+-   **`if (length(x)) x[1L] else NA_real_`**:
+
+    -   If `x` contains at least one valid income (`length(x) > 0`), it extracts the first one (`x[1L]`).
+
+    -   If all income values for that ID are `NA` (meaning `length(x)` is 0), it returns a missing value typed specifically for numeric data (`NA_real_`).
+
+Much easier:
+
+```{r}
+DT[, first_observed_income := fcoalesce(as.numeric(income))[1L], by = id]
+DT[, .(id, year, income, first_observed_income)]
+```
+
+dplyr:
+
+```{r}
+#| label: first-obs-dplyr
+df |>
+  group_by(id) |>
+  mutate(
+    first_observed_income = {
+      x <- income[!is.na(income)]
+      if (length(x)) x[1L] else NA_real_
+    }
+  ) |>
+  ungroup()
+```
+
+base R:
+
+```{r}
+#| label: first-obs-base
+first_nonmissing <- function(x) {
+  x <- x[!is.na(x)]
+  if (length(x)) x[1L] else NA_real_
+}
+df_base$first_observed_income <- ave(df_base$income, df_base$id,
+                                     FUN = first_nonmissing)
+df_base[, c("id", "year", "income", "first_observed_income")]
+```
+
+This repeats the first observed income on every row for that individual. To keep only the value on the first row, combine it with `first_record`.
+
+## First year with a condition
+
+For example, the first year in which status becomes `"B"`:
+
+```{r}
+#| label: first-year-B-dt
+DT[, first_year_B := {
+  y <- year[status == "B"]
+  if (length(y)) min(y) else NA_integer_
+}, by = id]
+```
+
+```{r}
+#| label: first-year-B-dplyr
+df |>
+  group_by(id) |>
+  mutate(
+    first_year_B = {
+      y <- year[status == "B"]
+      if (length(y)) min(y) else NA_integer_
+    }
+  ) |>
+  ungroup()
+```
+
+base R:
+
+```{r}
+#| label: first-year-B-base
+first_year_B <- function(year, status) {
+  y <- year[status == "B"]
+  if (length(y)) min(y) else NA_integer_
+}
+df_base$first_year_B <- ave(df_base$year, df_base$id,
+                            FUN = function(y) {
+                              idx <- which(df_base$id ==
+                                             df_base$id[which(df_base$year == y[1])][1])
+                              # simpler: split-level computation below
+                              rep(NA_integer_, length(y))
+                            })
+# Clearer base R: split, compute, recombine
+df_base$first_year_B <- NA_integer_
+for (i in unique(df_base$id)) {
+  idx  <- which(df_base$id == i)
+  yrs  <- df_base$year[idx]
+  st   <- df_base$status[idx]
+  hits <- yrs[st == "B"]
+  df_base$first_year_B[idx] <- if (length(hits)) min(hits) else NA_integer_
+}
+df_base[, c("id", "year", "status", "first_year_B")]
+```
+
+Use `which.max(condition)` only when the condition is known to occur and its logical behaviour with missing values is controlled. For “first year satisfying a condition”, filtering the years is often clearer.
+
+## Last non-missing value
+
+data.table:
+
+```{r}
+#| label: last-obs-dt
+DT[, last_observed_income := {
+  x <- income[!is.na(income)]
+  if (length(x)) x[length(x)] else NA_real_
+}, by = id]
+```
+
+dplyr:
+
+```{r}
+#| label: last-obs-dplyr
+df |>
+  group_by(id) |>
+  mutate(
+    last_observed_income = {
+      x <- income[!is.na(income)]
+      if (length(x)) x[length(x)] else NA_real_
+    }
+  ) |>
+  ungroup()
+```
+
+base R:
+
+```{r}
+#| label: last-obs-base
+last_nonmissing <- function(x) {
+  x <- x[!is.na(x)]
+  if (length(x)) x[length(x)] else NA_real_
+}
+df_base$last_observed_income <- ave(df_base$income, df_base$id,
+                                    FUN = last_nonmissing)
+df_base[, c("id", "year", "income", "last_observed_income")]
+```
+
+Do not confuse “last row” with “last non-missing value”: the last record may have a missing value.
+
+# Constructing spells and episodes
+
+Longitudinal microdata often contain spells: consecutive observations during which a condition remains true, or periods in which a categorical state does not change.
+
+## Start a new spell whenever status changes
+
+SAS:
+
+``` sas
+data want;
+  set have;
+  by id year;
+  retain spell_id previous_status;
+
+  if first.id then do;
+    spell_id = 1;
+    previous_status = status;
+  end;
+  else do;
+    if status ne previous_status then spell_id + 1;
+    previous_status = status;
+  end;
+run;
+```
+
+data.table:
+
+```{r}
+#| label: spell-dt
+DT[, spell_start := seq_len(.N) == 1L | status != shift(status), by = id]
+DT[, spell_id := cumsum(spell_start), by = id]
+DT
+```
+
+dplyr:
+
+```{r}
+#| label: spell-dplyr
+df |>
+  group_by(id) |>
+  mutate(
+    spell_start = row_number() == 1L | status != lag(status),
+    spell_id    = cumsum(spell_start)
+  ) |>
+  ungroup()
+```
+
+base R:
+
+```{r}
+#| label: spell-base
+df_base$spell_start <- ave(seq_len(nrow(df_base)), df_base$id, FUN = function(i) {
+  s <- df_base$status[i]
+  c(TRUE, s[-1] != s[-length(s)])
+})
+df_base$spell_id <- ave(seq_len(nrow(df_base)), df_base$id,
+                        FUN = function(i) cumsum(df_base$spell_start[i]))
+df_base[, c("id", "year", "status", "spell_start", "spell_id")]
+```
+
+The examples assume `status` is not missing. When status can be missing, define whether two missing statuses count as the same state, and whether transitions into or out of missing values start a new spell. In R, `NA != "A"` evaluates to `NA`, so the expression must be adapted to your missing-value policy.
+
+A missing-safe version that treats two missing values as the same state can use an explicit comparison helper:
+
+```{r}
+#| label: spell-missing-safe-dt
+same_state <- function(x, y) {
+  (is.na(x) & is.na(y)) | (!is.na(x) & !is.na(y) & x == y)
+}
+
+DT[, spell_start := {
+  previous <- shift(status)
+  seq <- seq_len(.N)
+  seq == 1L | !same_state(status, previous)
+}, by = id]
+DT[, spell_id := cumsum(spell_start), by = id]
+```
+
+For character variables this helper is straightforward. For more complex types, adapt the comparison carefully.
+
+## Start a new spell after a gap in observation years
+
+A spell may need to break not only when status changes, but also when years are not consecutive.
+
+data.table:
+
+```{r}
+#| label: spell-gap-dt
+DT[, spell_start := seq_len(.N) == 1L |
+     status != shift(status) |
+     year != shift(year) + 1L, by = id]
+DT[, spell_id := cumsum(spell_start), by = id]
+```
+
+dplyr:
+
+```{r}
+#| label: spell-gap-dplyr
+df1 <- df |>
+  group_by(id) |>
+  mutate(
+    spell_start = row_number() == 1L |
+      status != lag(status) |
+      year != lag(year) + 1L,
+    spell_id = cumsum(spell_start)
+  ) |>
+  ungroup()
+```
+
+base R:
+
+```{r}
+#| label: spell-gap-base
+df_base$spell_start <- ave(seq_len(nrow(df_base)), df_base$id, FUN = function(i) {
+  s <- df_base$status[i]
+  y <- df_base$year[i]
+  c(TRUE,
+    s[-1] != s[-length(s)] |
+    y[-1] != y[-length(y)] + 1L)
+})
+df_base$spell_id <- ave(seq_len(nrow(df_base)), df_base$id,
+                        FUN = function(i) cumsum(df_base$spell_start[i]))
+df_base[, c("id", "year", "status", "spell_id")]
+```
+
+Again, add explicit missing-value handling if status or year can be missing.
+
+## Summarise each spell
+
+Once `spell_id` exists, summarise by individual and spell.
+
+data.table:
+
+```{r}
+#| label: spell-summary-dt
+spell_summary <- DT[, .(
+  start_year = min(year, na.rm = TRUE),
+  end_year   = max(year, na.rm = TRUE),
+  n_records  = .N,
+  status     = first(status)
+), by = .(id, spell_id)]
+```
+
+dplyr:
+
+```{r}
+#| label: spell-summary-dplyr
+spell_summary <- df1 |>
+  group_by(id, spell_id) |>
+  summarise(
+    start_year = min(year, na.rm = TRUE),
+    end_year   = max(year, na.rm = TRUE),
+    n_records  = n(),
+    status     = first(status),
+    .groups    = "drop"
+  )
+```
+
+base R:
+
+```{r}
+#| label: spell-summary-base
+spell_summary <- do.call(
+  rbind,
+  lapply(split(df_base, list(df_base$id, df_base$spell_id), drop = TRUE),
+         function(g) {
+           data.frame(
+             id         = g$id[1],
+             spell_id   = g$spell_id[1],
+             start_year = min(g$year, na.rm = TRUE),
+             end_year   = max(g$year, na.rm = TRUE),
+             n_records  = nrow(g),
+             status     = g$status[1]
+           )
+         })
+)
+spell_summary
+```
+
+Guard against groups where all `year` values are missing; `min(..., na.rm = TRUE)` then returns `Inf` with a warning.
+
+# Transition matrices and state histories
+
+## Previous-to-current status transition
+
+```{r}
+#| label: transitions-dt
+DT[, previous_status := shift(status), by = id]
+transitions <- DT[!is.na(previous_status),
+  .N, by = .(previous_status, status)
+][order(previous_status, status)]
+```
+
+dplyr:
+
+```{r}
+#| label: transitions-dplyr
+transitions <- df |>
+  group_by(id) |>
+  mutate(previous_status = lag(status)) |>
+  ungroup() |>
+  filter(!is.na(previous_status)) |>
+  count(previous_status, status, name = "n") |>
+  arrange(previous_status, status)
+```
+
+base R:
+
+```{r}
+#| label: transitions-base
+df_base$previous_status <- ave(df_base$status, df_base$id,
+                               FUN = function(x) shift_vec(x))
+sub <- df_base[!is.na(df_base$previous_status), ]
+transitions <- as.data.frame(table(sub$previous_status, sub$status),
+                             stringsAsFactors = FALSE)
+names(transitions) <- c("previous_status", "status", "n")
+transitions <- transitions[transitions$n > 0L, ]
+transitions <- transitions[order(transitions$previous_status,
+                                 transitions$status), ]
+transitions
+```
+
+This counts observed adjacent-record transitions. It does not imply that the records are one year apart. Add a consecutive-year condition when required.
+
+## Individual-level transition indicator
+
+For each individual, identify whether status ever changes:
+
+```{r}
+#| label: ever-changed-dt
+DT[, ever_changed_status := uniqueN(status, na.rm = TRUE) > 1L, by = id]
+```
+
+```{r}
+#| label: ever-changed-dplyr
+df |>
+  group_by(id) |>
+  mutate(ever_changed_status = n_distinct(status, na.rm = TRUE) > 1L) |>
+  ungroup()
+```
+
+base R:
+
+```{r}
+#| label: ever-changed-base
+n_distinct_base <- function(x, na.rm = FALSE) {
+  if (na.rm) x <- x[!is.na(x)]
+  length(unique(x))
+}
+df_base$ever_changed_status <- ave(df_base$status, df_base$id,
+                                   FUN = function(x) n_distinct_base(x, na.rm = TRUE) > 1L)
+df_base[, c("id", "year", "status", "ever_changed_status")]
+```
+
+The `na.rm = TRUE` policy excludes missing statuses. If missingness itself is analytically meaningful, treat it as a separate state rather than dropping it.
+
+# Within-individual transformations and baseline values
+
+## Deviation from the first observed value
+
+data.table:
+
+```{r}
+#| label: baseline-dt
+DT[, baseline_income := {
+  x <- income[!is.na(income)]
+  if (length(x)) x[1L] else NA_real_
+}, by = id]
+DT[, change_from_baseline := income - baseline_income]
+```
+
+dplyr:
+
+```{r}
+#| label: baseline-dplyr
+df |>
+  group_by(id) |>
+  mutate(
+    baseline_income = {
+      x <- income[!is.na(income)]
+      if (length(x)) x[1L] else NA_real_
+    },
+    change_from_baseline = income - baseline_income
+  ) |>
+  ungroup()
+```
+
+base R:
+
+```{r}
+#| label: baseline-base
+df_base$baseline_income <- ave(df_base$income, df_base$id,
+                               FUN = first_nonmissing)
+df_base$change_from_baseline <- df_base$income - df_base$baseline_income
+df_base[, c("id", "year", "income", "baseline_income", "change_from_baseline")]
+```
+
+## Within-individual mean and centring
+
+data.table:
+
+```{r}
+#| label: mean-centre-dt
+DT[, mean_income := mean(income, na.rm = TRUE), by = id]
+DT[, income_centred := income - mean_income]
+```
+
+dplyr:
+
+```{r}
+#| label: mean-centre-dplyr
+df |>
+  group_by(id) |>
+  mutate(
+    mean_income    = mean(income, na.rm = TRUE),
+    income_centred = income - mean_income
+  ) |>
+  ungroup()
+```
+
+base R:
+
+```{r}
+#| label: mean-centre-base
+df_base$mean_income    <- ave(df_base$income, df_base$id,
+                              FUN = function(x) mean(x, na.rm = TRUE))
+df_base$income_centred <- df_base$income - df_base$mean_income
+df_base[, c("id", "year", "income", "mean_income", "income_centred")]
+```
+
+If all values for an individual are missing, `mean(..., na.rm = TRUE)` returns `NaN`. If this is possible, replace the result with `NA_real_` explicitly.
+
+## Within-individual rank
+
+```{r}
+#| label: rank-dt
+DT[, income_rank := frank(income, ties.method = "average"), by = id]
+```
+
+```{r}
+#| label: rank-dplyr
+df |>
+  group_by(id) |>
+  mutate(income_rank = min_rank(income)) |>
+  ungroup()
+```
+
+base R:
+
+```{r}
+#| label: rank-base
+df_base$income_rank <- ave(df_base$income, df_base$id,
+                           FUN = function(x) rank(x, ties.method = "average",
+                                                  na.last = "keep"))
+df_base[, c("id", "year", "income", "income_rank")]
+```
+
+`frank()`, `min_rank()`, and base `rank()` have different tie conventions by default. Choose the required convention explicitly. In dplyr, `min_rank()` assigns tied observations the same minimum rank; `dense_rank()` does not leave gaps after ties.
+
+# Conditional carry-forward and last observation carried forward
+
+A common SAS pattern uses `RETAIN` to carry the most recent observed value forward.
+
+SAS:
+
+``` sas
+data want;
+  set have;
+  by id year;
+  retain carried_status;
+
+  if first.id then carried_status = status;
+  else if not missing(status) then carried_status = status;
+run;
+```
+
+This requires a policy for a missing value in the first row of each individual. A clear R implementation is to fill missing values within each individual after sorting.
+
+data.table:
+
+```{r}
+#| label: locf-dt
+#DT[, carried_status := nafill(status, type = "locf"), by = id]
+DT[, carried_status := status[which(!is.na(status))[cumsum(!is.na(status))]], by = id]
+DT[, carried_status := status[1] , by = .(id, cumsum(!is.na(status)))]
+
+```
+
+For character data, support for `nafill()` depends on the data.table version and type. A broadly applicable alternative is to use `zoo::na.locf()` (with `na.rm = FALSE`) or an explicit grouped fill operation.
+
+dplyr:
+
+```{r}
+#| label: locf-dplyr
+# Requires tidyr
+# library(tidyr)
+df |>
+  group_by(id) |>
+  tidyr::fill(status, .direction = "down") |>
+  ungroup()
+```
+
+base R:
+
+```{r}
+#| label: locf-base
+locf <- function(x) {
+  last  <- NA
+  for (i in seq_along(x)) {
+    if (!is.na(x[i])) last <- x[i]
+    x[i] <- last
+  }
+  x
+}
+df_base$carried_status <- ave(df_base$status, df_base$id, FUN = locf)
+df_base[, c("id", "year", "status", "carried_status")]
+```
+
+`locf()` is a small explicit loop, which is idiomatic base R for this kind of sequential fill. It respects the sorted row order and does not fill leading missing values.
+
+This fills only downward within each individual's sorted history. It does not fill leading missing values unless you also use an upward fill, which changes the meaning and should be justified.
+
+# Conditional accumulation and event counters
+
+## Count events to date
+
+For example, count how many times an individual enters status `"B"`.
+
+data.table:
+
+```{r}
+#| label: enter-B-dt
+DT[, entered_B := status == "B" & shift(status, fill = first(status)) != "B", by = id]
+DT[, entries_B_to_date := cumsum(entered_B), by = id]
+```
+
+The preceding expression uses the first status as a fill value, so the first row is not counted as a transition into B. If the first observed state is B and that should count as an entry, use a different initialisation rule.
+
+A clearer implementation is often:
+
+```{r}
+#| label: enter-B-clear-dt
+DT[, entered_B := status == "B" &
+     (seq_len(.N) == 1L | shift(status) != "B"), by = id]
+DT[, entries_B_to_date := cumsum(entered_B), by = id]
+```
+
+dplyr:
+
+```{r}
+#| label: enter-B-dplyr
+df |>
+  group_by(id) |>
+  mutate(
+    entered_B = status == "B" &
+      (row_number() == 1L | lag(status) != "B"),
+    entries_B_to_date = cumsum(coalesce(entered_B, FALSE))
+  ) |>
+  ungroup()
+```
+
+base R:
+
+```{r}
+#| label: enter-B-base
+df_base$entered_B <- ave(seq_len(nrow(df_base)), df_base$id, FUN = function(i) {
+  s <- df_base$status[i]
+  s == "B" & (seq_along(s) == 1L | s != c(NA, s[-length(s)]))
+})
+df_base$entered_B[is.na(df_base$entered_B)] <- FALSE
+df_base$entries_B_to_date <- ave(df_base$entered_B, df_base$id, FUN = cumsum)
+df_base[, c("id", "year", "status", "entered_B", "entries_B_to_date")]
+```
+
+If status may be missing, define whether a transition from missing to B counts as an entry. Add explicit logic rather than relying on default `NA` propagation.
+
+## Count records satisfying a condition
+
+```{r}
+#| label: count-cond-dt
+DT[, n_high_income_to_date := cumsum(!is.na(income) & income >= 3000), by = id]
+```
+
+```{r}
+#| label: count-cond-dplyr
+df |>
+  group_by(id) |>
+  mutate(n_high_income_to_date = cumsum(!is.na(income) & income >= 3000)) |>
+  ungroup()
+```
+
+base R:
+
+```{r}
+#| label: count-cond-base
+df_base$n_high_income_to_date <- ave(
+  df_base$income, df_base$id,
+  FUN = function(x) cumsum(!is.na(x) & x >= 3000)
+)
+df_base[, c("id", "year", "income", "n_high_income_to_date")]
+```
+
+# Multi-row state logic: when a loop is appropriate
+
+Most tasks above are best expressed with vectorised grouped operations. A loop may be appropriate when each row's result depends on a complex state updated by several rules, such as an eligibility state machine or a sequential imputation algorithm.
+
+A base R example of a running balance with a reset condition:
+
+```{r}
+#| label: balance-fn
+calculate_balance <- function(amount, reset) {
+  out <- numeric(length(amount))
+  balance <- 0
+
+  for (i in seq_along(amount)) {
+    if (isTRUE(reset[i])) balance <- 0
+    if (!is.na(amount[i])) balance <- balance + amount[i]
+    out[i] <- balance
+  }
+  out
+}
+
+DT[, balance := calculate_balance(income, reset = status == "A"), by = id]
+
+DT[, .(id, year, income, status, balance)]
+```
+
+The input to `calculate_balance()` must already be in chronological order. For missing `status`, `reset = status == "A"` can contain `NA`; the use of `isTRUE()` inside the function makes an `NA` reset behave as false. Confirm that this is the intended business rule.
+
+Questo codice R calcola un **saldo progressivo (o cumulo) del reddito per ogni `id`**, con la particolarità che questo saldo viene **azzerato (riportato a 0) ogni volta che la colonna `status` è uguale a "A"**.
+
+Much more efficiently by using pure `data.table` syntax and eliminating the `for` loop entirely. The `for` loop in your original R function processes data row by row, which becomes very slow on large datasets.
+
+The optimal approach is to **create temporary sub-groups** that increment every time `status == "A"` occurs, and then apply R's highly optimized, built-in `cumsum()` function within those sub-groups.
+
+Here is the fastest and most idiomatic `data.table` way to do it:
+
+```{r}
+# 1. Create a temporary sub-group ID for each reset block within each id
+DT[, grp_reset := cumsum(status == "A"), by = id]
+
+# 2. Calculate the cumulative sum grouped by both id and the reset block
+DT[, balance := cumsum(fifelse(is.na(income), 0, income)), by = .(id, grp_reset)]
+
+# 3. Clean up the temporary grouping column
+DT[, grp_reset := NULL]
+
+DT[, .(id, year, income, status, balance)]
+```
+
+**Why this approach is better**
+
+-   **Speed:** Both `cumsum()` and `fifelse()` are compiled in C, making them exponentially faster than a standard R `for` loop.
+
+-   **Memory Efficiency:** It leverages `data.table`'s internal grouping optimizations (`by = .(id, grp_reset)`) without making memory copies of the data.
+
+-   **Safe NA Handling:** The `fifelse()` function temporarily replaces `NA` values with `0` strictly for the mathematical sum, ensuring `NA` rows don't break the chain while leaving your original `income` column unchanged.
+
+A dplyr version can call the same function on each group:
+
+```{r}
+#| label: balance-dplyr
+df |>
+  group_by(id) |>
+  mutate(balance = calculate_balance(income, reset = status == "A")) |>
+  ungroup()
+```
+
+A pure base R version applies the same function by `id` with `ave()`:
+
+```{r}
+#| label: balance-base
+df_base$balance <- ave(df_base$income, df_base$id, FUN = function(x) {
+  idx <- which(df_base$id == df_base$id[which(df_base$income == x[1])][1])
+  # clearer alternative below
+  x
+})
+# Clear base R implementation: split by id, apply, unsplit
+df_base$balance <- NA_real_
+for (i in unique(df_base$id)) {
+  idx <- which(df_base$id == i)
+  df_base$balance[idx] <- calculate_balance(
+    df_base$income[idx],
+    reset = df_base$status[idx] == "A"
+  )
+}
+df_base[, c("id", "year", "income", "status", "balance")]
+```
+
+Avoid translating every SAS DATA step into an explicit R loop. Use a loop when the algorithm is inherently sequential; otherwise prefer grouped vector operations.
+
+# Multiple output datasets
+
+SAS often creates several datasets from one pass through the data:
+
+``` sas
+data firsts lasts changes;
+  set have;
+  by id year;
+
+  if first.id then output firsts;
+  if last.id then output lasts;
+  if not first.id then output changes;
+run;
+```
+
+In R, it is usually clearer to create named objects from one prepared dataset.
+
+data.table:
+
+```{r}
+#| label: multi-output-dt
+setorder(DT, id, year)
+firsts  <- DT[, .SD[1L], by = id]
+lasts   <- DT[, .SD[.N], by = id]
+changes <- DT[, if (.N > 1L) .SD[-1L], by = id]
+```
+
+dplyr:
+
+```{r}
+#| label: multi-output-dplyr
+df <- df |> arrange(id, year)
+firsts  <- df |> group_by(id) |> slice_head(n = 1) |> ungroup()
+lasts   <- df |> group_by(id) |> slice_tail(n = 1) |> ungroup()
+changes <- df |> group_by(id) |> slice(-1) |> ungroup()
+```
+
+base R:
+
+```{r}
+#| label: multi-output-base
+df_base <- df_base[order(df_base$id, df_base$year), ]
+firsts  <- df_base[!duplicated(df_base$id), ]
+lasts   <- df_base[!duplicated(df_base$id, fromLast = TRUE), ]
+changes <- df_base[ave(seq_len(nrow(df_base)), df_base$id,
+                       FUN = seq_along) > 1L, ]
+```
+
+The `changes` objects above contain all records after the first within each individual; they do not themselves calculate differences. Add the required `lag()`/`shift()` columns separately.
+
+# Construct a balanced panel
+
+In longitudinal analysis we often want to build a balanced panel to follow individual having experienced some event. The empty panel is then populated with events from other registers: birth, entry in labour market, wages.
+
+```{r}
+
+individuals <- tibble(
+  id = c(101, 102, 103, 104),
+  year_from = 2012,
+  year_to   = year_from + 5
+)
+
+individuals
+```
+
+ Here is the code in `data.table`:
+
+```{r}
+
+setDT(individuals)
+
+panel <- individuals[
+  ,
+  .(year = seq(year_from, year_to)),
+  by = .(id)
+]
+
+panel
+```
+ Here is the code in `dplyr`:
+ 
+```{r}
+panel <- individuals |>
+  mutate(
+    year = purrr::map2(
+      year_from,
+      year_to,
+      seq
+    )
+  ) |>
+  tidyr::unnest(year)
+
+panel
+```
+ 
+ We often want the chracteristics at the moment of the event to be repeated for all the years of the panel. Here is the code in `data.table`:
+ 
+```{r}
+
+library(data.table)
+
+# Initial dataset
+individuals <- data.table(
+  id = c(101, 102, 103, 104),
+  sesso = c(1, 2, 1, 2),
+  state_of_birth = c("CH", "IT", "CH", "FR"),
+  year_from = 2017,
+  year_to = 2023
+)
+
+# Create balanced panel
+panel <- individuals[
+  ,
+  c(
+    .SD[, !c("year_from", "year_to"), with = FALSE],
+    list(year = seq(year_from, year_to))
+  ),
+  by = id
+]
+
+# Inspect result
+panel[]
+
+```
+ 
+You can wrap all this in a function:
+
+```{r}
+library(data.table)
+
+create_panel <- function(dt, id_col, from_col = "year_from", to_col = "year_to") {
+  # 1. Convertiamo in data.table se non lo è già (senza duplicare in memoria)
+  setDT(dt)
+  
+  # 2. Identifichiamo tutte le colonne fisse da mantenere immutate
+  # (ovvero tutte tranne le colonne di inizio/fine anno)
+  fixed_cols <- setdiff(names(dt), c(from_col, to_col))
+  
+  # 3. Generiamo la sequenza di anni per ogni riga originale raggruppando per colonne fisse
+  expanded_dt <- dt[, .(year = seq(get(from_col), get(to_col))), by = fixed_cols]
+  
+  return(expanded_dt)
+}
+
+```
+
+Call of the function:
+
+```{r}
+risultato <- create_panel(
+  dt = individuals, 
+  id_col = "id", 
+  from_col = "year_from", 
+  to_col = "year_to"
+)
+
+risultato
+
+```
+
+
+Note: `setDT(df)` changes the type of the original object by reference. If you wish to avoid this change, you can use `setDT(copy(df))`.
+
+# SAS-to-R equivalence table
+
+| SAS pattern                     | data.table                              | dplyr                              | base R                                                              | Important qualification                                 |
+|---------------|---------------|---------------|---------------|---------------|
+| `PROC SORT BY id year`          | `setorder(DT, id, year)`                | `arrange(df, id, year)`            | `df[order(df$id, df$year), ]`                                       | Sorting must be explicit                                |
+| `BY id` group processing        | `by = id`                               | `group_by(id)`                     | `ave(..., id, FUN=)`, `split()`/`lapply()`                          | dplyr grouping persists until `ungroup()`               |
+| `FIRST.id`                      | `seq_len(.N) == 1L` within `by=id`      | `row_number() == 1L`               | `ave(seq_len(n), id, FUN=function(i) i==i[1])`                      | Depends on row order                                    |
+| `LAST.id`                       | `seq_len(.N) == .N`                     | `row_number() == n()`              | `ave(seq_len(n), id, FUN=function(i) i==i[length(i)])`              | Depends on row order                                    |
+| `if first.id then ...`          | Group expression / first-row flag       | `if_else(row_number() == 1L, ...)` | `ifelse(first_record, ..., ...)`                                    | Vectorised logic is usually preferred                   |
+| `RETAIN previous`               | `shift(x)` / grouped state              | `lag(x)` / grouped state           | `ave(x, id, FUN=shift_vec)`                                         | Usually replaces a retained previous value              |
+| `LAG(x)`                        | `shift(x)`                              | `lag(x)`                           | `ave(x, id, FUN=shift_vec)`                                         | SAS `LAG()` is queue-based and conditional calls matter |
+| Sum statement `total + x;`      | `cumsum(fcoalesce(x, 0))`               | `cumsum(coalesce(x, 0))`           | `ave(x, id, FUN=function(v) cumsum(ifelse(is.na(v),0,v)))`          | SAS sum statement ignores missing summands              |
+| Running event count             | `cumsum(condition)`                     | `cumsum(condition)`                | `ave(condition, id, FUN=cumsum)`                                    | Convert missing logical values according to policy      |
+| First row per ID                | `.SD[1L]`                               | `slice_head(n=1)`                  | `df[!duplicated(df$id), ]`                                          | Sort first                                              |
+| Last row per ID                 | `.SD[.N]`                               | `slice_tail(n=1)`                  | `df[!duplicated(df$id, fromLast=TRUE), ]`                           | Sort first                                              |
+| `if last.id then output;`       | Filter `seq_len(.N) == .N` or `.SD[.N]` | `slice_tail(n=1)`                  | `df[!duplicated(df$id, fromLast=TRUE), ]`                           | Separate output objects are idiomatic                   |
+| Previous record's value         | `shift(x)`                              | `lag(x)`                           | `ave(x, id, FUN=shift_vec)`                                         | Adjacent record may not mean adjacent year              |
+| Next record's value             | `shift(x, type="lead")`                 | `lead(x)`                          | `ave(x, id, FUN=function(v) shift_vec(v, type="lead"))`             | Explicit ordering required                              |
+| Cumulative maximum              | `cummax(x)`                             | `cummax(x)`                        | `ave(x, id, FUN=cummax)`                                            | Check missing-value behaviour                           |
+| Change in status                | `x != shift(x)`                         | `x != lag(x)`                      | `ave(x, id, FUN=function(v) v != shift_vec(v))`                     | Define behaviour for missing values                     |
+| Spell number                    | `cumsum(spell_start)`                   | `cumsum(spell_start)`              | `ave(seq_len(n), id, FUN=function(i) cumsum(...))`                  | Define what starts a new spell                          |
+| Carry forward non-missing value | `nafill()` / `na.locf()`                | `tidyr::fill()`                    | explicit `for` loop + `ave()`                                       | Decide how leading missing values behave                |
+| Rank within group               | `frank(x, ties.method=)`                | `min_rank(x)`                      | `ave(x, id, FUN=function(v) rank(v, ties.method=, na.last="keep"))` | Choose tie convention explicitly                        |
+
+## Which base R primitives play the role of SAS features
+
+| SAS feature                     | Base R primitive(s)                                                                |
+|------------------------------------|------------------------------------|
+| `BY` groups                     | `ave()`, `split()` + `lapply()`, `tapply()`, `by()`                                |
+| `FIRST.` / `LAST.`              | `!duplicated(..., fromLast = FALSE/TRUE)`; `ave(seq_len(n), id, FUN = ...)`        |
+| Previous/next record            | `ave(x, id, FUN = shift_vec)`; explicit `for` loop by group                        |
+| Running accumulators            | `ave(x, id, FUN = cumsum)` etc.                                                    |
+| `LAG()` (queue semantics)       | Not available natively; a small queue helper or explicit `for` loop is required    |
+| `RETAIN` for a scalar per group | `ave(..., FUN = ...)` returning a repeated scalar, or `split()`/`sapply()` + merge |
+| Multiple output datasets        | `split()`, `subset()`, `!duplicated()`, `do.call(rbind, ...)`                      |
+| Spell construction              | `rle()` for consecutive runs; `cumsum()` of a start flag                           |
+| Transition matrices             | `table(prev, current, useNA = "no")`                                               |
+| `NA` policy                     | `is.na()`, `ifelse()`, explicit `NA_real_`/`NA_integer_`                           |
+
+# Important migration pitfalls
+
+## SAS missing values are not identical to R `NA`
+
+In R, comparisons involving `NA` often return `NA`, not `TRUE` or `FALSE`. For example:
+
+```{r}
+#| label: na-compare
+NA != "A"
+```
+
+This is `NA`, so a condition based on it may propagate missingness. In SAS, missing values participate in comparisons under SAS's own ordering rules. Never assume that a direct translation of a SAS condition has identical behaviour.
+
+Write the intended missing-value policy explicitly, for example:
+
+``` r
+!is.na(status) & status == "B"
+```
+
+or use a missing-safe equality helper if two missing values should be considered equal.
+
+## SAS sum statements and R cumulative sums differ
+
+The SAS sum statement retains the accumulator and ignores a missing addend. R's `cumsum()` propagates `NA`. To mimic the SAS sum statement, use `coalesce(x, 0)` only if that is the intended interpretation of missing data.
+
+## `LAG()` is a SAS queue function
+
+A SAS `LAG(x)` call retrieves a value from a queue populated when that function executes. If it is called conditionally, the queue advances only when the call executes. This can differ from a simple previous-row operation. In R, grouped `lag()` and `shift()` are positional within the group and are generally more transparent.
+
+## `FIRST.` and `LAST.` are BY-group flags, not data values
+
+They are created by SAS from the BY statement and sort order. In R, create flags from `row_number()` or `seq_len(.N)` after ordering. Do not assume the source file is already sorted.
+
+## Duplicate keys require a decision
+
+If an individual has multiple records in the same year, decide whether the longitudinal unit is `id-year`, whether duplicates should be resolved, or whether a second ordering variable is needed. `FIRST.id` still identifies the first row of an individual, but “previous year” logic may be ambiguous.
+
+## Grouping state is different
+
+`data.table` groups a calculation through `by=` for that expression. `dplyr::group_by()` changes the grouping metadata of the object until it is modified or removed with `ungroup()`. Unintended persistent grouping is a common source of errors. Base R `ave()` and `split()` create grouping only for the duration of the call and leave no persistent state.
+
+## Avoid modifying shared objects unintentionally
+
+`data.table` uses reference semantics for operations such as `:=`; it may modify `DT` in place. If a separate copy is needed:
+
+``` r
+DT_work <- copy(DT)
+```
+
+With dplyr, verbs generally return a new object, although assignment can replace the previous object. Base R functions in this guide return new objects and do not modify their inputs.
+
+# A recommended template for production code
+
+A robust longitudinal workflow should make the key assumptions visible.
+
+The examples below use `input_data` as a placeholder for the table you are processing; here it is aliased to `DT` so that the chunks run.
+
+```{r}
+#| label: template-input
+input_data <- DT
+```
+
+## data.table template
+
+```{r}
+#| label: template-dt
+DT <- as.data.table(copy(input_data))
+setorder(DT, id, year)
+
+# One-row-per-person-period validation
+duplicates <- DT[, .N, by = .(id, year)][N > 1L]
+if (nrow(duplicates) > 0L) {
+  stop("Duplicate id-year records: resolve before longitudinal calculations.")
+}
+
+DT[, `:=`(
+  first_record    = seq_len(.N) == 1L,
+  last_record     = seq_len(.N) == .N,
+  previous_status = shift(status),
+  previous_income = shift(income)
+), by = id]
+
+DT[, status_changed := {
+  prev <- shift(status)
+  !is.na(prev) & !is.na(status) & status != prev
+}, by = id]
+
+DT[, cumulative_income := cumsum(fcoalesce(income, 0)), by = id]
+```
+
+## dplyr template
+
+```{r}
+#| label: template-dplyr
+df <- input_data |>
+  as_tibble() |>
+  arrange(id, year)
+
+duplicates <- df |>
+  count(id, year, name = "n") |>
+  filter(n > 1L)
+
+if (nrow(duplicates) > 0L) {
+  stop("Duplicate id-year records: resolve before longitudinal calculations.")
+}
+
+df <- df |>
+  group_by(id) |>
+  mutate(
+    first_record    = row_number() == 1L,
+    last_record     = row_number() == n(),
+    previous_status = lag(status),
+    previous_income = lag(income),
+    status_changed  = !is.na(previous_status) &
+      !is.na(status) & status != previous_status,
+    cumulative_income = cumsum(coalesce(income, 0))
+  ) |>
+  ungroup()
+```
+
+## base R template
+
+```{r}
+#| label: template-base
+df_base <- as.data.frame(input_data)
+df_base <- df_base[order(df_base$id, df_base$year), ]
+rownames(df_base) <- NULL
+
+# One-row-per-person-period validation
+dup_keys <- paste(df_base$id, df_base$year, sep = "_")
+if (anyDuplicated(dup_keys)) {
+  stop("Duplicate id-year records: resolve before longitudinal calculations.")
+}
+
+df_base$first_record    <- ave(seq_len(nrow(df_base)), df_base$id,
+                               FUN = function(i) i == i[1])
+df_base$last_record     <- ave(seq_len(nrow(df_base)), df_base$id,
+                               FUN = function(i) i == i[length(i)])
+df_base$previous_status <- ave(df_base$status, df_base$id,
+                               FUN = function(x) shift_vec(x))
+df_base$previous_income <- ave(df_base$income, df_base$id,
+                               FUN = function(x) shift_vec(x))
+df_base$status_changed  <- !is.na(df_base$previous_status) &
+  !is.na(df_base$status) &
+  df_base$status != df_base$previous_status
+df_base$cumulative_income <- ave(df_base$income, df_base$id,
+                                 FUN = function(x) cumsum(ifelse(is.na(x), 0, x)))
+```
+
+The three templates intentionally make missing-value behaviour explicit for `status_changed`. The cumulative income examples treat missing income as zero; change this if missingness means unknown rather than zero.
+
+# Choosing data.table, dplyr, or base R
+
+| Consideration                   | data.table                                  | dplyr                                                             | base R                                                   |
+|------------------|------------------|------------------|------------------|
+| Large administrative microdata  | Excellent performance and memory efficiency | Often very readable; performance depends on operation and backend | Adequate for moderate data; performance depends on idiom |
+| In-place updates                | `:=` modifies by reference                  | Usually creates a returned object                                 | Returned objects; explicit assignment                    |
+| Grouped previous/next values    | `shift()`                                   | `lag()` / `lead()`                                                | `ave(..., FUN = shift_vec)` or explicit loop             |
+| Grouped row count               | `.N`                                        | `n()`                                                             | `ave(..., FUN = length)` / `table()`                     |
+| First/last rows                 | `.SD[1L]`, `.SD[.N]`                        | `slice_head()`, `slice_tail()`                                    | `!duplicated(..., fromLast=)`                            |
+| Cumulative operations           | `cumsum()`, `cummax()`, etc.                | Same base R functions inside `mutate()`                           | `ave(..., FUN = cumsum)`                                 |
+| Complex chained transformations | Concise and fast once familiar              | Often very readable with the pipe                                 | Requires explicit intermediate objects                   |
+| SQL-like data manipulation      | `DT[i, j, by]`                              | `select()`, `filter()`, `mutate()`, `summarise()`                 | `subset()`, `merge()`, `aggregate()`                     |
+| External dependencies           | `data.table`                                | `dplyr`, `tibble`, `tidyr`                                        | None                                                     |
+
+For very large longitudinal microdata, **data.table is often a strong default** when memory efficiency and speed are important. **dplyr is also a sound choice** when the team prefers a declarative pipeline and the data volume and execution environment support it. **Base R** has no external dependencies and is sufficient for many tasks, but grouped operations quickly become verbose, and the SAS-style sequential state patterns (`RETAIN`, `LAG`) usually require an explicit loop. All three can express most `RETAIN` and `FIRST./LAST.` use cases without translating SAS's row-by-row mechanics literally.
+
+# Final checklist
+
+Before going to SAS-to-R longitudinal migration, verify:
+
+1.  Is the data sorted by the same variables as the SAS `BY` statement?
+2.  Are duplicate individual-period records possible, and how are they handled?
+3.  Does “previous observation” mean previous record or previous calendar period?
+4.  What should happen on the first record for an individual?
+5.  Are missing values ignored, propagated, treated as zero, or treated as a separate state?
+6.  Does the SAS code use `LAG()` conditionally?
+7.  Does a spell break on a status change, a time gap, or both?
+8.  Does the output contain one row per individual, one row per individual-period, or one row per spell?
+9.  Are multiple SAS output datasets best represented by multiple named R objects?
+10. Have results been validated against SAS on a representative sample, including edge cases?
+
+A good migration reproduces the **business meaning** of the SAS logic, not merely its syntax. For longitudinal microdata, ordering, missing-value policy, and the definition of an observation are usually the most consequential decisions.

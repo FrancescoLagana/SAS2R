@@ -1,0 +1,147 @@
+---
+title: "Apply formats from metadata file"
+date: today
+lang: en
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-copy: true
+    df-print: paged
+  docx:
+    toc: true
+    number-sections: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+# Aim: Apply formats from metadata file to a data table dataset.
+
+
+Load packages
+
+```{r}
+library(data.table)
+
+```
+
+Formats are in a list of named vectors, where the names are the labels and the values are the codes.
+```{r}
+
+# Create a mapping list for labels 
+label_list <- list(
+  sesso = c("Maschio" = 1, "Femmina" = 2),
+  istruzione = c(
+    "Obbligatoria" = 1,
+    "Secondaria" = 2,
+    "Terziaria" = 3
+  )
+)
+
+```
+
+Retrieve values from the list (equivalent of select statement in SAS PROC FORMAT) and apply them to the dataset. The `haven::labelled()` function is used to apply the labels to the variables. 
+
+
+# Exemple metadadata
+```{r}
+label_list$sesso
+
+#equivalent:
+
+label_list[["sesso"]]
+```
+# Exemple dataset
+
+Data for exemple:
+```{r}
+DT <- data.table(
+  sesso = c(1, 2, 1, 2, 1, 2),
+  istruzione = c(1, 2, 3, 2, 1, 3)
+)
+```
+
+# Apply formats to data with `haven` package
+
+Apply formats to data
+
+```{r}
+# Apply labels on-the-fly using the mapping list
+DT[, sesso := haven::labelled(sesso, labels = label_list$sesso)]
+DT[, istruzione := haven::labelled(istruzione, labels = label_list$istruzione)]
+
+```
+
+
+... and tabulate
+```{r}
+# Tabulate with labels
+DT[, .(Count = .N), 
+  by = .(sesso = haven::as_factor(sesso),
+         istruzione = haven::as_factor(istruzione))]
+```
+
+
+# Apply formats without using `haven` package
+```{r}
+
+library(data.table)
+
+# Dataset
+DT <- data.table(
+  sesso = c(1, 2, 1, 2, 1, 2),
+  istruzione = c(1, 2, 3, 2, 1, 3)
+)
+
+# Mapping dei metadati
+label_list <- list(
+  sesso = c("Maschio" = 1, 
+  "Femmina" = 2),
+  istruzione = c(
+    "Obbligatoria" = 1,
+    "Secondaria" = 2,
+    "Terziaria" = 3
+  )
+)
+
+```
+
+
+Apply value labels as attributes to the dataset, with a loop
+
+```{r}
+# Applicazione delle value labels come attributi
+for (v in names(DT)) {
+  setattr(DT[[v]], "labels", label_list[[v]])
+}
+
+str(DT)
+```
+
+... tabulate with labels
+
+```{r}
+# Funzione per convertire i codici in etichette
+as_label <- function(x, labels) {
+  factor(
+    x,
+    levels = unname(labels),
+    labels = names(labels)
+  )
+}
+
+# Tabulazione con etichette
+tab <- DT[, .(Count = .N),
+  by = .(
+    sesso = as_label(sesso, label_list$sesso),
+    istruzione = as_label(istruzione, label_list$istruzione)
+  )
+]
+
+# Risultato
+print(tab)
+
+```

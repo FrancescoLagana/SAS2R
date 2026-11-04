@@ -1,0 +1,157 @@
+---
+title: "Recode factor variables from SAS to data.table"
+author: "Francesco Laganà"
+date: today
+lang: en
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-copy: true
+    df-print: paged
+  docx:
+    toc: true
+    number-sections: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+Load packages:
+```{r}
+library(data.table)
+```
+
+Exemple data:
+```{r}
+DT <- data.table(
+  id = c(1, 1, 1, 2, 2, 3),
+  var = c(10, 20, 15, 5, 8, 12)
+)
+
+DT[, max_var := max(var), by = id]
+```
+
+# SAS DATA STEP: SELECT GROUP
+
+``` sas
+data DT;
+    set DT;
+
+    select;
+        when (var = 10) gruppo = "A";
+        when (var = 20) gruppo = "B";
+        when (var = 15) gruppo = "C";
+        otherwise gruppo = "ALTRO";
+    end;
+run;
+```
+
+## `data.table` equivalent with `fcase()`
+
+```{r}
+DT[, gruppo := fcase(
+  var == 10, "A",
+  var == 20, "B",
+  var == 15, "C",
+  default = "OTHER"
+)]
+
+DT
+```
+
+`fcase()` evaluates the conditions in sequence and returns the value associated with the first condition that evaluates to true.
+
+## Recode two or more variables
+
+SAS code
+
+``` sas
+select;
+    when (var < 10) classe = 1;
+    when (var >= 10 and var < 20) classe = 2;
+    when (var >= 20) classe = 3;
+    otherwise classe = 0;
+end;
+```
+
+`data.table` code
+
+```{r}
+DT[, classe := fcase(
+  var < 10, 1L,
+  var >= 10 & var < 20, 2L,
+  var >= 20, 3L,
+  default = 0L
+)]
+
+DT
+```
+
+# SAS DATA STEP: if-then-else
+
+To create `dummies` use this function (`fifelse`):
+
+```{r}
+DT[, classe := fifelse(var > 10, "A", "B")]
+
+DT
+```
+
+`fifelse()` is the equivalent of an IF-THEN-ELSE, whilst fcase() is particularly well suited to replicating SELECT-WHEN-OTHERWISE.
+
+For the migration from SAS to R/data.table, use `fcase()` to translate the SELECT-WHEN blocks.
+
+# SAS IF-THEN DO; ... END; ELSE DO; ... END;
+
+To translate a SAS block such as IF-THEN DO; ... END; ELSE DO; ... END; into a data.table, it depends on what you need to do: assign variables or execute multiple statements.
+
+## SAS: IF-THEN-ELSE with more assignments:
+
+``` sas
+data want;
+    set have;
+    if var > 10 then do;
+        classe = "A";
+        flag = 1;
+        valore = var * 2;
+    end;
+    else do;
+        classe = "B";
+        flag = 0;
+        valore = var;
+    end;
+run;
+```
+
+`data.table`: multiple assignments using `:=` This is probably the most natural way to write code when working with 
+`data.table`.
+
+```{r}
+DT[var > 10, `:=`(
+  classe = "A",
+  flag = 1L,
+  valore = var * 2
+)]
+
+DT[var <= 10, `:=`(
+  classe = "B",
+  flag = 0L,
+  valore = var
+)]
+
+DT
+```
+
+## Correspondence SAS → `data.table`
+
+| SAS DATA STEP                   | data.table                |
+|:--------------------------------|:--------------------------|
+| `if condition then`             | `DT[condition, ...]`      |
+| `else`                          | `DT[!condition, ...]`     |
+| `do; ... end;`                  | `.(...)` oppure `{ ... }` |
+| `x = value;`                    | `x := value`              |
+| `if-then-else` su una variabile | `fifelse()`               |
+| `select-when`                   | `fcase()`                 |
