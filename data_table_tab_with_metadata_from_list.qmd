@@ -1,4 +1,4 @@
----
+--- 
 title: "Statistical tabulations with data.table and SAS-style formats"
 subtitle: "Reproducible examples with format metadata stored in a named list"
 format:
