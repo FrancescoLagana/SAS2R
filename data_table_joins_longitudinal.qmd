@@ -69,7 +69,7 @@ inside the brackets.
 An equi join matches rows when key values are equal. It is the
 equivalent of an SQL join using `=`.
 
-## 1.1 Create two tables
+## Create two tables
 
 ```{r}
 people <- data.table(
@@ -89,7 +89,7 @@ income
 The tables share `id`. IDs 1, 2 and 3 occur in both; ID 4 occurs only in
 `people`, and ID 5 only in `income`.
 
-## 1.2 Inner join
+## Inner join
 
 An inner join keeps only rows with a match in both tables:
 
@@ -107,7 +107,7 @@ FROM people
 INNER JOIN income ON people.id = income.id;
 ```
 
-## 1.3 Left join
+## Left join
 
 A left join keeps every row of `people` and adds matching information
 from `income`:
@@ -129,7 +129,7 @@ LEFT JOIN income ON people.id = income.id;
 **Remember:** `income[people]` keeps the rows of `people`, because
 `people` is `i`.
 
-## 1.4 Right join
+## Right join
 
 To keep all rows of `income` and look up names in `people`, reverse the
 tables:
@@ -140,7 +140,7 @@ people[income, on = "id"]
 
 ID 5 is retained, with `name = NA`.
 
-## 1.5 Full outer join
+## Full outer join
 
 A full outer join keeps all keys from both tables. `merge()` is
 convenient for this:
@@ -151,21 +151,21 @@ merge(people, income, by = "id", all = TRUE, sort = FALSE)
 
 `all = TRUE` retains unmatched rows from both inputs.
 
-## 1.6 Join on multiple columns
+## Join on multiple columns
 
 Longitudinal data commonly use a person identifier and a time variable
 together:
 
 ```{r}
 income_by_year <- data.table(
-  id = c(1, 1, 2, 2),
-  year = c(2022, 2023, 2022, 2023),
-  income = c(42000, 44000, 51000, 53000)
+  id = c(1, 1, 2, 2, 3),
+  year = c(2022, 2023, 2022, 2023, 2023),
+  income = c(42000, 44000, 51000, 53000, 54000)
 )
 
 education_by_year <- data.table(
-  id = c(1, 1, 2, 2),
-  year = c(2022, 2023, 2022, 2023),
+  id = c(1, 1, 2, 2, 3),
+  year = c(2022, 2023, 2022, 2023, 2025),
   education = c("Upper secondary", "Tertiary", "Tertiary", "Tertiary")
 )
 
@@ -174,7 +174,7 @@ education_by_year[income_by_year, on = .(id, year)]
 
 A match is returned only when **both** `id` and `year` are equal.
 
-## 1.7 Different names for matching columns
+## Different names for matching columns
 
 The key columns do not need to have the same name:
 
@@ -189,7 +189,7 @@ income_by_person[people, on = .(person_id = id)]
 
 This matches `person_id` in `x` to `id` in `i`.
 
-## 1.8 Update join: add columns by reference
+## Update join: add columns by reference
 
 An update join adds or updates a column in an existing table:
 
@@ -209,14 +209,14 @@ people_with_income
 refers to the column from `income`. `copy()` protects the original
 `people` object.
 
-# 2. Non-equi joins
+# Non-equi joins
 
 A non-equi join uses inequalities instead of equality. The operators are
 `<`, `<=`, `>` and `>=`. They are useful for assigning observations to
 ranges, matching dates to validity periods, and identifying records
 before or after an event.
 
-## 2.1 Assign an income category using thresholds
+## Assign an income category using thresholds
 
 Each category has a lower income threshold:
 
@@ -247,7 +247,7 @@ thresholds[
 `persons`. The result assigns `Low` to 25,000, `Medium` to 45,000,
 `High` to 65,000, and `Very high` to 85,000 and 110,000.
 
-## 2.2 Match observations to validity intervals
+## Match observations to validity intervals
 
 This is a particularly important pattern for longitudinal and
 administrative data. `observations` contains a person's observation
@@ -287,7 +287,7 @@ the validity interval. This example assumes that validity intervals for
 a given person do not overlap. If they overlap, one observation can
 match more than one validity record; check whether that is expected.
 
-## 2.3 Check the number of validity matches
+## Check the number of validity matches
 
 ```{r}
 matches <- validity[
@@ -309,7 +309,7 @@ means exactly one record covers it; `2` or more means multiple validity
 records cover it. `by = .EACHI` evaluates the expression for each row of
 `i`.
 
-## 2.4 Non-equi update join
+## Non-equi update join
 
 The same interval logic can update an existing table:
 
@@ -335,13 +335,13 @@ be at least `year_from` and at most `year_to` in `i`. Use this update
 form only when the matching rule is unambiguous; multiple validity
 matches should be resolved explicitly.
 
-# 3. Rolling joins
+# Rolling joins
 
 A rolling join finds the nearest matching value when an exact match is
 unavailable. It is useful for linking measurements, events, prices or
 status records recorded at irregular time points.
 
-## 3.1 Find the latest measurement available at each visit
+## Find the latest measurement available at each visit
 
 ```{r}
 measurements <- data.table(
@@ -377,7 +377,7 @@ measurements[
 date. In chronological terms, this is a backward-looking match: the
 measurement must be on or before the visit.
 
-## 3.2 Find the next available measurement
+## Find the next available measurement
 
 To find the first measurement on or after each visit, use `roll = -Inf`:
 
@@ -389,7 +389,7 @@ measurements[
 ]
 ```
 
-## 3.3 Limit the rolling distance
+## Limit the rolling distance
 
 A rolling join can be limited so that a match is accepted only within a
 specified distance. For `IDate` values, the distance is expressed in
@@ -407,14 +407,14 @@ This accepts a measurement no more than seven days before the visit. A
 visit with no measurement in that period receives `NA` for the
 measurement columns.
 
-## 3.4 Exact matches and rolling endpoints
+## Exact matches and rolling endpoints
 
 Exact matches are allowed by default. The `rollends` argument controls
 whether rolling is allowed beyond the first and last values in `x`; it
 does not simply switch exact matching on or off. See the official joins
 vignette for details of endpoint behaviour.
 
-# 4. Self-joins
+# Self-joins
 
 A self-join joins a table to itself. Conceptually, the same dataset
 plays two roles: `x` is searched, and `i` supplies the rows and key
@@ -422,7 +422,7 @@ values for which matches are sought. Self-joins are useful for comparing
 records within the same person, finding pairs of events, identifying
 transitions, and detecting temporal relationships.
 
-## 4.1 Find all pairs of different years for the same person
+## Find all pairs of different years for the same person
 
 ```{r}
 panel <- data.table(
@@ -449,7 +449,7 @@ For person 1, the pairs are 2019–2020, 2019–2021 and 2020–2021.
 person with (n) records can generate up to (n(n-1)/2) ordered year
 pairs, so large self-joins can produce very large results.
 
-## 4.2 Compare each record with the previous calendar year
+## Compare each record with the previous calendar year
 
 Create a lookup table in which each previous-year value is keyed to the
 following year:
@@ -485,7 +485,7 @@ match. This method compares with `year - 1`, not simply with the
 previous available record. If a person has observations in 2019 and 2021
 but not 2020, the 2021 record will not be matched to 2019.
 
-## 4.3 Compare with the previous available record using `shift()`
+## Compare with the previous available record using `shift()`
 
 If the objective is to compare each row with the previous available
 observation, `shift()` is usually simpler and more efficient than a
@@ -511,7 +511,7 @@ The distinction is important:
 - **Previous available record:** use `shift()` after sorting by person
   and time.
 
-## 4.4 Identify status transitions
+## Identify status transitions
 
 A self-join can compare the status in the current year with the status
 in the previous calendar year:
@@ -542,7 +542,7 @@ transitions
 This identifies the transition from A to B for person 1 and from C to D
 for person 2.
 
-## 4.5 Detect overlapping validity periods
+## Detect overlapping validity periods
 
 A self-join can compare validity intervals within the same person. Two
 closed intervals overlap when:
@@ -585,7 +585,7 @@ In this example, periods 1 and 2 overlap for person 1; person 2 has no
 overlapping periods. This is a useful data-quality check before using
 validity intervals in a non-equi join.
 
-# 5. Choosing the right join for longitudinal data
+# Choosing the right join for longitudinal data
 
 | Task | Recommended approach |
 |------------------------------------|------------------------------------|
@@ -599,12 +599,12 @@ validity intervals in a non-equi join.
 | Compare with the previous calendar year | Equi join using a shifted year key |
 | Detect overlapping validity periods | Non-equi self-join |
 
-# 6. Quality checks for administrative data
+# Quality checks for administrative data
 
 Joins can change the number of rows in a dataset. Always check
 cardinality and matching assumptions.
 
-## 6.1 Check key uniqueness
+## Check key uniqueness
 
 If a table is expected to have one row per person and year:
 
@@ -620,7 +620,7 @@ duplicates
 An empty result means that no `id`–`year` combination occurs more than
 once.
 
-## 6.2 Check unmatched records
+## Check unmatched records
 
 For a lookup table `income` and a table `people` whose rows must be
 retained:
@@ -637,7 +637,7 @@ sum(is.na(unmatched))
 
 This counts rows of `people` without a matching `id` in `income`.
 
-## 6.3 Check row counts before and after a join
+## Check row counts before and after a join
 
 ```{r}
 nrow(people)
@@ -650,7 +650,7 @@ For a left join, the result can contain more rows than `people` if
 `income` has multiple matching records per key. This is not necessarily
 an error, but it must be expected and understood.
 
-## 6.4 Make matching assumptions explicit
+## Make matching assumptions explicit
 
 Before joining, establish:
 
