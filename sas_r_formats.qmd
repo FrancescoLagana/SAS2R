@@ -20,7 +20,6 @@ execute:
 
 # Aim: Apply formats from metadata file to a data table dataset.
 
-
 Load packages
 
 ```{r}
@@ -29,24 +28,28 @@ library(data.table)
 ```
 
 Formats are in a list of named vectors, where the names are the labels and the values are the codes.
+
 ```{r}
 
 # Create a mapping list for labels 
 label_list <- list(
-  sesso = c("Maschio" = 1, "Femmina" = 2),
+  sesso = c(
+    "1" = "Maschio",
+    "2" = "Femmina"
+  ),
   istruzione = c(
-    "Obbligatoria" = 1,
-    "Secondaria" = 2,
-    "Terziaria" = 3
+    "1" = "Obbligatoria",
+    "2" = "Secondaria",
+    "3" = "Terziaria"
   )
 )
 
 ```
 
-Retrieve values from the list (equivalent of select statement in SAS PROC FORMAT) and apply them to the dataset. The `haven::labelled()` function is used to apply the labels to the variables. 
-
+Retrieve values from the list (equivalent of select statement in SAS PROC FORMAT) and apply them to the dataset. The `haven::labelled()` function is used to apply the labels to the variables.
 
 # Exemple metadadata
+
 ```{r}
 label_list$sesso
 
@@ -54,9 +57,11 @@ label_list$sesso
 
 label_list[["sesso"]]
 ```
+
 # Exemple dataset
 
 Data for exemple:
+
 ```{r}
 DT <- data.table(
   sesso = c(1, 2, 1, 2, 1, 2),
@@ -69,14 +74,23 @@ DT <- data.table(
 Apply formats to data
 
 ```{r}
+
+# Invert mapping: code -> label becomes label -> code
+label_list_haven <- lapply(label_list, function(x) {
+  setNames(as.numeric(names(x)), unname(x))
+})
+
+label_list_haven
+
 # Apply labels on-the-fly using the mapping list
-DT[, sesso := haven::labelled(sesso, labels = label_list$sesso)]
-DT[, istruzione := haven::labelled(istruzione, labels = label_list$istruzione)]
+DT[, sesso := haven::labelled(sesso, labels = label_list_haven$sesso)]
+DT[, istruzione := haven::labelled(istruzione, labels = label_list_haven$istruzione)]
+DT
 
 ```
 
-
 ... and tabulate
+
 ```{r}
 # Tabulate with labels
 DT[, .(Count = .N), 
@@ -84,8 +98,8 @@ DT[, .(Count = .N),
          istruzione = haven::as_factor(istruzione))]
 ```
 
-
 # Apply formats without using `haven` package
+
 ```{r}
 
 library(data.table)
@@ -96,19 +110,20 @@ DT <- data.table(
   istruzione = c(1, 2, 3, 2, 1, 3)
 )
 
-# Mapping dei metadati
+# Mapping dei metadati: codice -> etichetta
 label_list <- list(
-  sesso = c("Maschio" = 1, 
-  "Femmina" = 2),
+  sesso = c(
+    "1" = "Maschio",
+    "2" = "Femmina"
+  ),
   istruzione = c(
-    "Obbligatoria" = 1,
-    "Secondaria" = 2,
-    "Terziaria" = 3
+    "1" = "Obbligatoria",
+    "2" = "Secondaria",
+    "3" = "Terziaria"
   )
 )
 
 ```
-
 
 Apply value labels as attributes to the dataset, with a loop
 
@@ -127,9 +142,9 @@ str(DT)
 # Funzione per convertire i codici in etichette
 as_label <- function(x, labels) {
   factor(
-    x,
-    levels = unname(labels),
-    labels = names(labels)
+    as.character(x),
+    levels = names(labels),
+    labels = unname(labels)
   )
 }
 
@@ -143,5 +158,4 @@ tab <- DT[, .(Count = .N),
 
 # Risultato
 print(tab)
-
 ```
