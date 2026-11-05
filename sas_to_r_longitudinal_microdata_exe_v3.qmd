@@ -906,7 +906,7 @@ This is a missing value of integer type.
 
 Consider this dataset:
 
-``` R
+``` r
 DT <- data.table(
   id = c(1, 1, 1, 2, 2, 2, 3, 3),
   year = c(2019, 2020, 2021, 2019, 2020, 2021, 2020, 2021),
@@ -1911,7 +1911,7 @@ Note: `setDT(df)` changes the type of the original object by reference. If you w
 # SAS-to-R equivalence table
 
 | SAS pattern | data.table | dplyr | base R | Important qualification |
-|---------------|---------------|---------------|---------------|---------------|
+|----|----|----|----|----|
 | `PROC SORT BY id year` | `setorder(DT, id, year)` | `arrange(df, id, year)` | `df[order(df$id, df$year), ]` | Sorting must be explicit |
 | `BY id` group processing | `by = id` | `group_by(id)` | `ave(..., id, FUN=)`, `split()`/`lapply()` | dplyr grouping persists until `ungroup()` |
 | `FIRST.id` | `seq_len(.N) == 1L` within `by=id` | `row_number() == 1L` | `ave(seq_len(n), id, FUN=function(i) i==i[1])` | Depends on row order |
@@ -1935,7 +1935,7 @@ Note: `setDT(df)` changes the type of the original object by reference. If you w
 ## Which base R primitives play the role of SAS features
 
 | SAS feature | Base R primitive(s) |
-|------------------------------------|------------------------------------|
+|----|----|
 | `BY` groups | `ave()`, `split()` + `lapply()`, `tapply()`, `by()` |
 | `FIRST.` / `LAST.` | `!duplicated(..., fromLast = FALSE/TRUE)`; `ave(seq_len(n), id, FUN = ...)` |
 | Previous/next record | `ave(x, id, FUN = shift_vec)`; explicit `for` loop by group |
@@ -2101,7 +2101,7 @@ The three templates intentionally make missing-value behaviour explicit for `sta
 # Choosing data.table, dplyr, or base R
 
 | Consideration | data.table | dplyr | base R |
-|------------------|------------------|------------------|------------------|
+|----|----|----|----|
 | Large administrative microdata | Excellent performance and memory efficiency | Often very readable; performance depends on operation and backend | Adequate for moderate data; performance depends on idiom |
 | In-place updates | `:=` modifies by reference | Usually creates a returned object | Returned objects; explicit assignment |
 | Grouped previous/next values | `shift()` | `lag()` / `lead()` | `ave(..., FUN = shift_vec)` or explicit loop |
