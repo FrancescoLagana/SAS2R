@@ -1,0 +1,588 @@
+---
+title: "Statistical tabulations with data.table and SAS-style formats"
+subtitle: "Reproducible examples with external metadata"
+format:
+  html:
+    toc: true
+    number-sections: true
+  docx: default
+execute:
+  echo: true
+  warning: false
+---
+
+# Objective
+
+This tutorial builds a small tabulation toolkit around `data.table`. It separates:
+
+1.  **Data and calculations**: `data.table`.
+2.  **Value labels / formats**: an external metadata file (`formats.csv`).
+3.  **Presentation**: can be added later with `gt`, `flextable`, or Quarto.
+
+The format name is supplied explicitly, for example:
+
+``` r
+freq(DT, sex, fmt = "SEXFMTFR", metadata = formats)
+```
+
+Codes not listed in the metadata are preserved as their original values (for example, `-1`). Missing values remain missing.
+
+# 1. Packages and files
+
+```{r}
+library(data.table)
+
+# Put formats.csv in the same directory as this .qmd file.
+formats <- fread("formats.csv", colClasses = "character")
+
+formats[]
+```
+
+The metadata file has three columns:
+
+| format   | code | label         |
+|----------|------|---------------|
+| SEXFMTFR | 1    | Hommes        |
+| SEXFMTFR | 2    | Femmes        |
+| EDUFMTFR | 1    | Obligatoire   |
+| EDUFMTFR | 2    | Secondaire II |
+| EDUFMTFR | 3    | Tertiaire     |
+
+All codes are stored as character strings. This avoids problems when codes are not numeric (for example, `"A"` or `"01"`).
+
+# 2. Reproducible example data
+
+```{r}
+set.seed(2026)
+
+n <- 1000L
+
+DT <- data.table(
+  id = seq_len(n),
+  year = sample(2022:2025, n, replace = TRUE),
+  sex = sample(c(1, 2, -1, NA), n, replace = TRUE,
+               prob = c(.47, .49, .02, .02)),
+  education = sample(c(1, 2, 3, 9, NA), n, replace = TRUE,
+                     prob = c(.15, .45, .35, .03, .02)),
+  income = round(rnorm(n, mean = 65000, sd = 18000), 0)
+)
+
+DT[income < 0, income := 0]
+
+DT[]
+```
+
+Here, `-1` is deliberately not included in `SEXFMTFR`, and `9` is deliberately not included in `EDUFMTFR`. These codes will therefore remain visible in the tabulations.
+
+# 3. Read and validate metadata
+
+```{r}
+check_metadata <- function(metadata) {
+  required <- c("format", "code", "label")
+
+  missing_cols <- setdiff(required, names(metadata))
+  if (length(missing_cols)) {
+    stop("Metadata is missing columns: ",
+         paste(missing_cols, collapse = ", "))
+  }
+
+  metadata <- as.data.table(copy(metadata))
+  metadata[, (required) := lapply(.SD, as.character),
+           .SDcols = required]
+
+  duplicated_keys <- metadata[
+    , .N, by = .(format, code)
+  ][N > 1L]
+
+  if (nrow(duplicated_keys)) {
+    stop("Metadata contains duplicate (format, code) combinations.")
+  }
+
+  metadata[]
+}
+```
+
+# 4. Internal function to apply a format
+
+The function adds a label column; it does **not** overwrite the original code. This is useful for auditing and debugging.
+
+```{r}
+add_format_label <- function(tab, var, fmt, metadata,
+                              suffix = "_label") {
+  if (is.null(fmt)) return(tab[])
+
+  metadata <- check_metadata(metadata)
+
+  map <- metadata[format == fmt, .(code, label)]
+
+  if (nrow(map) == 0L) {
+    stop("Format not found or contains no values: ", fmt)
+  }
+
+  code <- as.character(tab[[var]])
+  idx <- match(code, map$code)
+
+  # If a code is not in the format, show the original code.
+  # NA remains NA.
+  label <- ifelse(
+    is.na(code),
+    NA_character_,
+    ifelse(is.na(idx), code, map$label[idx])
+  )
+
+  new_name <- paste0(var, suffix)
+  set(tab, j = new_name, value = label)
+  tab[]
+}
+```
+
+# 5. Frequency table: `freq()`
+
+`freq()` returns absolute frequencies and percentages. By default, the percentage denominator includes all records represented in the frequency table, including an `NA` category if present.
+
+```{r}
+freq <- function(DT, var, fmt = NULL, metadata,
+                 include_na = TRUE, digits = 1) {
+  v <- deparse(substitute(var))
+
+  if (!v %in% names(DT)) stop("Variable not found: ", v)
+
+  tab <- DT[, .N, by = v]
+
+  if (!include_na) tab <- tab[!is.na(get(v))]
+
+  tab[, pct := round(100 * N / sum(N), digits)]
+
+  add_format_label(tab, v, fmt, metadata)
+}
+```
+
+Examples:
+
+```{r}
+freq(DT, sex, fmt = "SEXFMTFR", metadata = formats)
+freq(DT, education, fmt = "EDUFMTFR", metadata = formats)
+```
+
+Expected interpretation:
+
+- `1` is labelled `Hommes`.
+- `2` is labelled `Femmes`.
+- `-1` stays `-1`, because it is not in the format.
+- Missing values stay `NA`; they are not silently converted into a code.
+
+To exclude missing values from the table and denominator:
+
+```{r}
+freq(DT, sex, fmt = "SEXFMTFR",
+     metadata = formats, include_na = FALSE)
+```
+
+# 6. Cross-tabulation: `cross_freq()`
+
+This returns a **long** table: one row per combination of the two variables. `percent` controls the denominator:
+
+- `"total"`: percentage of all records in the table;
+- `"row"`: percentage within each row category;
+- `"column"`: percentage within each column category.
+
+```{r}
+cross_freq <- function(DT, var1, var2,
+                       fmt1 = NULL, fmt2 = NULL,
+                       percent = c("row", "column", "total"),
+                       metadata,
+                       digits = 1,
+                       include_na = TRUE) {
+
+  percent <- match.arg(percent)
+
+  v1 <- deparse(substitute(var1))
+  v2 <- deparse(substitute(var2))
+
+  # Frequency table
+  tab <- DT[, .N, by = c(v1, v2)]
+
+  # Exclude missing values
+  if (!include_na) {
+    tab <- tab[!is.na(get(v1)) & !is.na(get(v2))]
+  }
+
+  # Apply SAS formats
+  apply_format <- function(tab, var, fmt) {
+
+    if (is.null(fmt)) return(tab)
+
+    map <- check_metadata(metadata)[format == fmt, .(code, label)]
+
+    if (nrow(map) == 0L)
+      stop("Format not found: ", fmt)
+
+    x <- as.character(tab[[var]])
+    idx <- match(x, map$code)
+
+    # Keep original code when no label exists
+    x[!is.na(idx)] <- map$label[idx[!is.na(idx)]]
+
+    # Identify unmapped codes
+    unknown <- !is.na(idx) & FALSE
+    unknown <- !is.na(x) & !x %chin% map$label
+
+    # Preserve missing values
+    x[is.na(tab[[var]])] <- "Missing"
+
+    set(tab, j = var, value = x)
+    tab
+  }
+
+  tab <- apply_format(tab, v1, fmt1)
+  tab <- apply_format(tab, v2, fmt2)
+
+  # Aggregate identical labels
+  tab <- tab[, .(N = sum(N)), by = c(v1, v2)]
+
+  # Percentages
+  if (percent == "total") {
+    tab[, pct := 100 * N / sum(N)]
+  } else if (percent == "row") {
+    tab[, pct := 100 * N / sum(N), by = v1]
+  } else {
+    tab[, pct := 100 * N / sum(N), by = v2]
+  }
+
+  tab[, pct := round(pct, digits)]
+
+  setcolorder(tab, c(v1, v2, "N", "pct"))
+
+  tab[]
+}
+```
+
+```{r}
+cross_freq_wide <- function(DT, var1, var2,
+                            fmt1 = NULL, fmt2 = NULL,
+                            metadata,
+                            value = c("N", "pct"),
+                            percent = c("row", "column", "total"),
+                            digits = 1,
+                            include_na = TRUE,
+                            margins = TRUE) {
+  
+  v1 <- deparse(substitute(var1))
+  v2 <- deparse(substitute(var2))
+  
+  value <- match.arg(value)
+  percent <- match.arg(percent)
+  
+  # Frequency table
+  tab <- DT[, .N, by = c(v1, v2)]
+  
+  if (!include_na) {
+    tab <- tab[!is.na(get(v1)) & !is.na(get(v2))]
+  }
+  
+  # Apply SAS formats
+  apply_format <- function(tab, var, fmt) {
+    
+    x <- as.character(tab[[var]])
+    
+    if (!is.null(fmt)) {
+      
+      map <- check_metadata(metadata)[
+        format == fmt, .(code, label)
+      ]
+      
+      if (!nrow(map)) {
+        stop("Format not found: ", fmt)
+      }
+      
+      idx <- match(x, map$code)
+      matched <- !is.na(idx)
+      
+      x[matched] <- map$label[idx[matched]]
+      
+      unknown <- !is.na(x) & !matched
+      x[unknown] <- paste0("Unknown (", x[unknown], ")")
+    }
+    
+    x[is.na(x)] <- "Missing"
+    
+    set(tab, j = var, value = x)
+    
+    tab
+  }
+  
+  tab <- apply_format(tab, v1, fmt1)
+  tab <- apply_format(tab, v2, fmt2)
+  
+  # Aggregate identical labels
+  tab <- tab[, .(N = sum(N)), by = c(v1, v2)]
+  
+  if (any(c(tab[[v1]], tab[[v2]]) == "Total", na.rm = TRUE)) {
+    stop("'Total' is reserved for marginal totals.")
+  }
+  
+  # Marginal frequencies
+  row_totals <- tab[, .(total = sum(N)), by = v1]
+  col_totals <- tab[, .(total = sum(N)), by = v2]
+  grand_total <- sum(tab$N)
+  
+  # Calculate cell values
+  if (value == "N") {
+    
+    tab[, result := N]
+    
+  } else if (percent == "row") {
+    
+    tab[, result := round(100 * N / sum(N), digits), by = v1]
+    
+  } else if (percent == "column") {
+    
+    tab[, result := round(100 * N / sum(N), digits), by = v2]
+    
+  } else {
+    
+    tab[, result := round(100 * N / grand_total, digits)]
+  }
+  
+  # Wide table
+  out <- data.table::dcast(
+    tab,
+    stats::reformulate(v2, response = v1),
+    value.var = "result",
+    fill = 0
+  )
+  
+  if (margins) {
+    
+    cols <- setdiff(names(out), v1)
+    
+    # Row totals
+    if (value == "N") {
+      
+      out[, Total := rowSums(.SD), .SDcols = cols]
+      
+    } else if (percent == "row") {
+      
+      out[, Total := 100]
+      
+    } else {
+      
+      out[, Total := round(
+        row_totals$total[match(get(v1), row_totals[[v1]])] /
+          grand_total * 100, digits
+      )]
+    }
+    
+    # Column totals
+    total_row <- out[1L]
+    
+    set(total_row, j = v1, value = "Total")
+    
+    for (col in cols) {
+      
+      total_value <- if (value == "N") {
+        
+        col_totals$total[match(col, col_totals[[v2]])]
+        
+      } else if (percent == "column") {
+        
+        100
+        
+      } else {
+        
+        round(
+          col_totals$total[match(col, col_totals[[v2]])] /
+            grand_total * 100, digits
+        )
+      }
+      
+      set(total_row, j = col, value = total_value)
+    }
+    
+    # Grand total
+    grand_value <- if (value == "N") grand_total else 100
+    
+    set(total_row, j = "Total", value = grand_value)
+    
+    out <- data.table::rbindlist(
+      list(out, total_row),
+      use.names = TRUE
+    )
+  }
+  
+  out[]
+}
+```
+
+Examples:
+
+```{r}
+# Row percentages: within each sex, distribution by education
+cross_freq(
+  DT,
+  sex,
+  education,
+  fmt1 = "SEXFMTFR",
+  fmt2 = "EDUFMTFR",
+  percent = "row",
+  metadata = formats
+)
+
+```
+
+```{r}
+tab_wide <- cross_freq_wide(
+  DT,
+  sex,
+  education,
+  fmt1 = "SEXFMTFR",
+  fmt2 = "EDUFMTFR",
+  metadata = formats,
+  value = "pct",
+  percent = "column",
+  include_na = FALSE,
+  margins = TRUE
+)
+
+tab_wide
+```
+
+```{r}
+tab_wide <- cross_freq_wide(
+  DT,
+  sex,
+  education,
+  fmt1 = "SEXFMTFR",
+  fmt2 = "EDUFMTFR",
+  metadata = formats,
+  value = "pct",
+  percent = "row",
+  include_na = FALSE,
+  margins = TRUE
+)
+
+tab_wide
+```
+
+```{r}
+tab_wide <- cross_freq_wide(
+  DT,
+  sex,
+  education,
+  fmt1 = "SEXFMTFR",
+  fmt2 = "EDUFMTFR",
+  metadata = formats,
+  percent = "row",
+  value = "N",
+  include_na = FALSE
+)
+
+tab_wide[]
+```
+
+# 7. Descriptive statistics by group: `summary_by()`
+
+This example calculates N non-missing, mean, standard deviation, median, minimum and maximum. It handles groups in which all values are missing: the descriptive statistics are returned as `NA`.
+
+```{r}
+summary_by <- function(DT, value, by, fmt = NULL,
+                       metadata, digits = 2) {
+  v <- deparse(substitute(value))
+  g <- deparse(substitute(by))
+
+  if (!all(c(v, g) %in% names(DT))) {
+    stop("Value or grouping variable not found in DT.")
+  }
+
+  tab <- DT[, {
+    x <- get(v)
+    x_nonmiss <- x[!is.na(x)]
+
+    .(
+      N = length(x_nonmiss),
+      Mean = if (length(x_nonmiss)) mean(x_nonmiss) else NA_real_,
+      SD = if (length(x_nonmiss) > 1L) sd(x_nonmiss) else NA_real_,
+      Median = if (length(x_nonmiss)) median(x_nonmiss) else NA_real_,
+      Min = if (length(x_nonmiss)) min(x_nonmiss) else NA_real_,
+      Max = if (length(x_nonmiss)) max(x_nonmiss) else NA_real_
+    )
+  }, by = g]
+
+  numeric_cols <- c("Mean", "SD", "Median", "Min", "Max")
+  tab[, (numeric_cols) := lapply(.SD, round, digits = digits),
+      .SDcols = numeric_cols]
+
+  add_format_label(tab, g, fmt, metadata)
+}
+```
+
+Example:
+
+```{r}
+summary_by(
+  DT, income, sex,
+  fmt = "SEXFMTFR",
+  metadata = formats
+)
+```
+
+# A longitudinal example
+
+A common production check is the number of records by year and sex.
+
+```{r}
+DT[, .N, by = .(year, sex)][
+  , pct := round(100 * N / sum(N), 1), by = year
+][
+  , sex_label := {
+    m <- formats[format == "SEXFMTFR"]
+    code <- as.character(sex)
+    idx <- match(code, m$code)
+    ifelse(is.na(code), NA_character_,
+           ifelse(is.na(idx), code, m$label[idx]))
+  }
+][]
+```
+
+A simpler alternative is to aggregate first and then apply the helper:
+
+```{r}
+year_sex <- DT[, .N, by = .(year, sex)]
+year_sex <- add_format_label(
+  year_sex, "sex", "SEXFMTFR", formats
+)
+year_sex[]
+```
+
+# Exporting results
+
+The functions return ordinary `data.table` objects. They can be inspected, joined, tested, or exported.
+
+```{r}
+tab_sex <- freq(DT, sex, "SEXFMTFR", formats)
+tab_education <- freq(DT, education, "EDUFMTFR", formats)
+tab_cross <- cross_freq(
+  DT, sex, education,
+  "SEXFMTFR", "EDUFMTFR",
+  percent = "row",
+  metadata = formats
+)
+
+fwrite(tab_sex, "frequency_sex.csv")
+fwrite(tab_education, "frequency_education.csv")
+fwrite(tab_cross, "cross_sex_education.csv")
+```
+
+For an Excel workbook with several sheets, the `openxlsx` package is a suitable next step. For publication-ready HTML tables, use `gt`; for Word output, use `flextable`.
+
+# Important design choices and limitations
+
+- The metadata file is a **long lookup table**: one row per format and code.
+- Codes are character strings in the metadata. This supports numeric and character codes.
+- Original codes are retained; labels are added in separate columns such as `sex_label`.
+- Unknown codes remain visible instead of becoming `NA`.
+- Missing values remain `NA`. If you want a visible missing category such as `"Missing"`, that should be an explicit reporting choice.
+- These examples implement discrete value formats. SAS formats based on ranges, `OTHER`, date formats, or multilabel formats need additional metadata rules.
+- `cross_freq()` returns long-form output. A wide presentation can be produced afterwards with `dcast()`.
+
+The central idea is to keep the tabulation engine independent from the presentation engine. That makes the same results reusable for quality-control reports, Excel extracts, Quarto reports, and publication tables.
