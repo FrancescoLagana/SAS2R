@@ -44,3 +44,6 @@ rsconnect/
 *.xlsx
 *.html
 *.pdf
+
+/.quarto/
+**/*.quarto_ipynb

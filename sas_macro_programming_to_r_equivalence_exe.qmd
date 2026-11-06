@@ -1,27 +1,29 @@
 ---
-  title: "SAS Macro Programming and R: An Equivalence Guide"
+title: "SAS Macro Programming and R: An Equivalence Guide"
 subtitle: "Concepts, patterns, and migration strategies"
 author: "Prepared with ChatGPT"
 date: "2026-10-23"
 lang: en
+
 format:
   html:
-  toc: true
-toc-depth: 3
-number-sections: true
-code-fold: false
-theme: cosmo
-pdf:
-  toc: true
-number-sections: true
-colorlinks: true
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-fold: false
+    theme: cosmo
+  pdf:
+    toc: true
+    number-sections: true
+    colorlinks: true
+
 execute:
   echo: true
-eval: true
+  eval: true
+
 editor:
   markdown:
     wrap: 72
-  wrap: 72
 ---
 
 \# Purpose and scope

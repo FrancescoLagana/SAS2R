@@ -588,7 +588,7 @@ validity intervals in a non-equi join.
 # Choosing the right join for longitudinal data
 
 | Task | Recommended approach |
-|------------------------------------|------------------------------------|
+|----|----|
 | Add attributes using an exact person ID | Equi join |
 | Match person and year exactly | Equi join on `id` and `year` |
 | Assign a record to a validity interval | Non-equi join |
