@@ -1,0 +1,266 @@
+---
+title: "Understanding lapply() in R and data.table"
+subtitle: "Applying functions to multiple variables"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-fold: false
+execute:
+  echo: true
+  warning: false
+---
+
+# What does `lapply()` do?
+
+`lapply()` is a base R function that applies a function to each element of a list (or vector) and returns the results as a list.
+
+It is particularly useful when you want to perform the same operation on multiple variables without writing repetitive code.
+
+## A basic example
+
+Suppose we have a list containing three numeric vectors:
+
+```{r}
+x <- list(
+  a = c(10, 20, 30),
+  b = c(5, 15, 25),
+  c = c(2, 4, 6)
+)
+```
+
+We want to calculate the sum of each vector:
+
+```{r}
+lapply(x, sum)
+```
+
+The result is:
+
+```text
+$a
+[1] 60
+
+$b
+[1] 45
+
+$c
+[1] 12
+```
+
+`lapply()` performs the following operations:
+
+1. Takes the first element (`a`).
+2. Applies `sum()` to it.
+3. Takes the second element (`b`).
+4. Applies `sum()` to it.
+5. Continues until all elements have been processed.
+6. Returns a list containing the results.
+
+The general syntax is:
+
+```r
+lapply(X, FUN, ...)
+```
+
+Where:
+
+- `X` is the list or vector to process.
+- `FUN` is the function to apply.
+- `...` represents additional arguments passed to the function.
+
+# Using `lapply()` with data.table
+
+One of the most useful applications of `lapply()` is processing several columns of a `data.table` simultaneously.
+
+Consider the following frequency table:
+
+```{r}
+library(data.table)
+
+tab <- data.table(
+  sex = c("Femmes", "Hommes"),
+  Obligatoire = c(100, 150),
+  Secondaire_II = c(200, 250),
+  Tertiaire = c(300, 400)
+)
+
+tab
+```
+
+We want to calculate column percentages, so that each column sums to 100%.
+
+## Identify the columns to process
+
+```{r}
+cols <- setdiff(names(tab), "sex")
+
+cols
+```
+
+`setdiff()` returns all column names except `"sex"`.
+
+The result is:
+
+```text
+[1] "Obligatoire" "Secondaire_II" "Tertiaire"
+```
+
+We exclude `sex` because it identifies the rows and does not contain numerical frequencies.
+
+## 2.2 Understand .SD and .SDcols
+
+In `data.table`, `.SD` stands for *Subset of Data*.
+
+It represents the selected columns available for processing within the current group.
+
+`.SDcols` specifies which columns should be included in `.SD`.
+
+For example:
+
+```{r}
+tab[, lapply(.SD, sum), .SDcols = cols]
+```
+
+This calculates the sum of each selected column.
+
+## Calculate column percentages
+
+```{r}
+tab[
+  ,
+  (cols) := lapply(.SD, function(x) {
+    x / sum(x) * 100
+  }),
+  .SDcols = cols
+]
+
+tab
+```
+
+The result is:
+
+| sex | Obligatoire | Secondaire_II | Tertiaire |
+|---|---:|---:|---:|
+| Femmes | 40.0 | 44.4 | 42.9 |
+| Hommes | 60.0 | 55.6 | 57.1 |
+
+Each column now sums to 100%.
+
+### How does this work?
+
+Consider the expression:
+
+```r
+lapply(.SD, function(x) {
+  x / sum(x) * 100
+})
+```
+
+`lapply()` processes each column separately.
+
+For the `Obligatoire` column:
+
+```r
+x <- c(100, 150)
+
+x / sum(x) * 100
+```
+
+The calculation is:
+
+- Femmes: 100 / 250 × 100 = 40%.
+- Hommes: 150 / 250 × 100 = 60%.
+
+The same calculation is repeated for the other columns.
+
+Finally:
+
+```r
+(cols) :=
+```
+
+assigns the resulting vectors back to their corresponding columns.
+
+**Important:** `:=` modifies the original `data.table` by reference. The frequency counts are therefore replaced by percentages.
+
+# lapply() versus sapply() versus vapply()
+
+R provides three related functions for applying operations to multiple elements.
+
+| Function | Return type | Main purpose |
+|---|---|---|
+| `lapply()` | List | Apply a function to each element |
+| `sapply()` | Simplified object | Apply and simplify the results when possible |
+| `vapply()` | Predetermined type | Apply with an explicitly specified output type |
+
+Example:
+
+```{r}
+lapply(x, sum)
+
+sapply(x, sum)
+
+vapply(x, sum, numeric(1))
+```
+
+All three calculate the sums, but their output structures differ.
+
+`vapply()` is particularly useful when you want to enforce a predictable output type.
+
+# Other practical applications
+
+The same principle can be used for many operations on multiple columns.
+
+## Calculate column means
+
+```{r}
+tab2 <- data.table(
+  age = c(20, 30, 40),
+  income = c(3000, 4000, 5000),
+  expenditure = c(1500, 2000, 2500)
+)
+
+tab2[, lapply(.SD, mean)]
+```
+
+## Convert several columns to character
+
+```{r}
+tab2[, (names(tab2)) := lapply(.SD, as.character)]
+```
+
+## Apply rounding to several columns
+
+```{r}
+tab2[, (names(tab2)) := lapply(.SD, as.numeric)]
+tab2[, (names(tab2)) := lapply(.SD, round, digits = 1)][]
+```
+
+# Why is lapply() useful in data.table?
+
+Without `lapply()`, you would have to write separate expressions for every column:
+
+```r
+tab[, Obligatoire := Obligatoire / sum(Obligatoire) * 100]
+
+tab[, Secondaire_II :=
+      Secondaire_II / sum(Secondaire_II) * 100]
+
+tab[, Tertiaire := Tertiaire / sum(Tertiaire) * 100]
+```
+
+Using `lapply()` allows you to express the same operation once:
+
+```r
+tab[
+  ,
+  (cols) := lapply(.SD, \(x) x / sum(x) * 100),
+  .SDcols = cols
+]
+```
+
+This approach is shorter, easier to maintain and particularly useful when the number of variables is not known in advance.
+
+**Key takeaway:** `lapply()` is a fundamental tool for writing generic and reusable data.table code. It allows you to apply the same operation systematically to multiple columns without explicitly naming each variable.

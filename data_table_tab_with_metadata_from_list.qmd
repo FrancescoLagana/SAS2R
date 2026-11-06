@@ -29,7 +29,7 @@ freq(DT, sex, fmt = "SEXFMTFR", formats = formats)
 
 Codes not listed in a format are preserved as their original values (for example, `-1`). Missing values remain `NA` unless the reporting function is explicitly asked to display them as a category.
 
-# 1. Packages and format definitions
+# Packages and format definitions
 
 ```{r}
 library(data.table)
@@ -57,7 +57,7 @@ Each element of `formats` is a named character vector:
 
 Codes are stored as character strings. This supports numeric-looking codes and character codes such as `"A"` or `"01"`.
 
-# 2. Reproducible example data
+# Reproducible example data
 
 ```{r}
 set.seed(2026)
@@ -81,7 +81,7 @@ DT[]
 
 Here, `-1` is deliberately not included in `SEXFMTFR`, and `9` is deliberately not included in `EDUFMTFR`. These codes remain visible in tabulations.
 
-# 3. Validate format definitions
+# Validate format definitions
 
 The validation function checks that:
 
@@ -137,7 +137,153 @@ Validate the definitions once after creating or importing them:
 check_formats(formats)
 ```
 
-# 4. Internal helper to add value labels
+# Apply formats on the fly
+This creates a new column with the label, without overwriting the original code. Codes absent from the selected format are retained as character values. Missing values remain `NA`.
+
+```{r}
+DT[, sex_label := formats$SEXFMTFR[as.character(sex)]]
+DT[, .(id, year, sex, sex_label)][1:10]
+```
+
+## Why using `formats$SEXFMTFR[as.character(sex)`
+Let's consider
+
+```{r}
+formats$SEXFMTFR
+```
+`formats$sex` is a vector character with two names.
+Whst does it do `as.character(sex)`
+
+```{r}
+sex <- c(1, 2, 1, 2, 1)
+
+as.character(sex)
+```
+
+R looks in the vector the elements corresponding to `"1"`, `"2"`, etc...
+The advantage is that technique works also when the codes are not consecutives.
+
+# Tabulation of a single variable
+
+
+```{r}
+tab <- DT[
+  , .N,
+  by = .(sex = formats$SEXFMTFR[as.character(sex)])
+][order(sex)]
+
+tab
+```
+
+Add percentages:
+
+```{r}
+tab[, percentage := N / sum(N) * 100][]
+```
+You can generalize this approach
+
+```{r}
+freq_table <- function(data, variable, formats, format_name) {
+
+  data[
+    ,
+    .N,
+    by = .(
+      category = formats[[format_name]][
+        as.character(get(variable))
+      ]
+    )
+  ][
+    , percentage := N / sum(N) * 100
+  ][order(category)]
+}
+```
+
+
+```{r}
+freq_table(
+  data = DT,
+  variable = "sex",
+  formats = formats,
+  format_name = "SEXFMTFR"
+)
+```
+
+
+# Apply formats on the cross-tabulations
+
+```{r}
+DT[, .N,
+   by = .(
+     sex = formats$SEXFMTFR[as.character(sex)],
+     education = formats$EDUFMTFR[as.character(education)]
+   )
+][order(sex, education)]
+```
+
+Transform the table in a wide format:
+```{r}
+
+tab <- DT[, .N,
+   by = .(
+     sex = formats$SEXFMTFR[as.character(sex)],
+     education = formats$EDUFMTFR[as.character(education)]
+   )
+]
+
+dcast(tab, sex ~ education,
+      value.var = "N",
+      fill = 0)
+```
+
+## Add pourcentages (row)
+
+```{r}
+tab <- DT[
+  , .N,
+  by = .(
+    sex = formats$SEXFMTFR[as.character(sex)],
+    education = formats$EDUFMTFR[as.character(education)]
+  )
+]
+
+tab <- dcast(
+  tab,
+  sex ~ education,
+  value.var = "N",
+  fill = 0
+)
+
+# Create a vector with all the names with exception of sex
+cols <- setdiff(names(tab), "sex")
+
+# Make the tabulation
+tab[
+  , (cols) := lapply(.SD, function(x) {
+    x / rowSums(as.matrix(.SD)) * 100
+  }),
+  .SDcols = cols
+][]
+```
+## Add pourcentages (column)
+
+```{r}
+cols <- setdiff(names(tab), "sex")
+
+tab[
+  , (cols) := lapply(.SD, function(x) {
+    x / sum(x) * 100
+  }),
+  .SDcols = cols
+]
+
+tab
+```
+### Note on the use of `lapply`
+(see document understand `lapply` in `data.table`)
+
+
+# Internal helper to add value labels
 
 `add_format_label()` adds a label column; it does **not** overwrite the original code. Codes absent from the selected format are retained as character values. Missing values remain `NA`.
 
@@ -181,7 +327,7 @@ sex_tab <- DT[, .N, by = sex]
 add_format_label(sex_tab, "sex", "SEXFMTFR", formats)
 ```
 
-# 5. Frequency table: `freq()`
+# Frequency table: `freq()`
 
 `freq()` returns absolute frequencies and percentages. By default, missing values are retained as an `NA` category and included in the percentage denominator.
 
@@ -232,7 +378,7 @@ freq(DT, sex, fmt = "SEXFMTFR",
      formats = formats, include_na = FALSE)
 ```
 
-# 6. Cross-tabulation: `cross_freq()`
+# Cross-tabulation: `cross_freq()`
 
 `cross_freq()` returns a **long** table: one row per combination of the two variables. `percent` controls the denominator:
 
@@ -323,7 +469,7 @@ cross_freq(
 )
 ```
 
-# 7. Wide cross-tabulation with margins: `cross_freq_wide()`
+# Wide cross-tabulation with margins: `cross_freq_wide()`
 
 This function returns one row per category of `var1` and one column per category of `var2`. With `margins = TRUE`, it adds row totals, column totals and the grand total.
 
@@ -540,7 +686,7 @@ tab_wide_n <- cross_freq_wide(
 tab_wide_n
 ```
 
-# 8. Descriptive statistics by group: `summary_by()`
+# Descriptive statistics by group: `summary_by()`
 
 This example calculates the number of non-missing observations, mean, standard deviation, median, minimum and maximum. Groups in which all values are missing are retained, with descriptive statistics set to `NA`.
 
@@ -586,7 +732,7 @@ summary_by(
 )
 ```
 
-# 9. A longitudinal example
+# A longitudinal example
 
 A common production check is the number of records by year and sex. First aggregate the data, then add the value labels without changing the original code.
 
@@ -605,7 +751,7 @@ year_sex <- add_format_label(
 year_sex[]
 ```
 
-# 10. Exporting results
+# Exporting results
 
 The functions return ordinary `data.table` objects. They can be inspected, joined, tested, or exported.
 
@@ -630,7 +776,7 @@ fwrite(tab_cross, "cross_sex_education.csv")
 
 For an Excel workbook with several sheets, `openxlsx` is a suitable option. For publication-ready HTML tables, use `gt`; for Word output, use `flextable`.
 
-# 11. Design choices and limitations
+# Design choices and limitations
 
 - Format definitions are stored in a **named list**. Each element is a named character vector mapping source codes to labels.
 - Codes in the list are character strings. This supports numeric and character codes, including codes such as `"01"`.

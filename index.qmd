@@ -5,10 +5,11 @@ format:
     toc: false
 ---
 
-# SAS2R Tutorials
+Ensemble de tutoriels et de guides pour la migration de code SAS vers R, en particulier pour les utilisateurs de SAS qui souhaitent apprendre R et ses packages, notamment data.table.
+*Focus*: grandes bases de données longitudinales
 
-## Documentation
 - [data.table base synthax equivalence](sas_to_datatable_migration_exe.html)
+- [data.table and applications of `lapply`](data_table_understand_lapply.html)
 - [SAS to R formats](sas_r_formats.html)
 - [Tabulate in R and apply formats from list-metadata catalogue](data_table_tab_with_metadata_from_list.html)
 - [Tabulate in R and apply formats from metadata catalogue](data_table_tab_with_metadata_from_list.html)
