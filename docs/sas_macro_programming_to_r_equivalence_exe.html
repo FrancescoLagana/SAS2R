@@ -1,0 +1,1654 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.10.20">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Prepared with ChatGPT">
+<meta name="dcterms.date" content="2026-10-23">
+
+<title>SAS Macro Programming and R: An Equivalence Guide</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="sas_macro_programming_to_r_equivalence_exe_files/libs/clipboard/clipboard.min.js"></script>
+<script src="sas_macro_programming_to_r_equivalence_exe_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="sas_macro_programming_to_r_equivalence_exe_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="sas_macro_programming_to_r_equivalence_exe_files/libs/quarto-html/popper.min.js"></script>
+<script src="sas_macro_programming_to_r_equivalence_exe_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="sas_macro_programming_to_r_equivalence_exe_files/libs/quarto-html/anchor.min.js"></script>
+<link href="sas_macro_programming_to_r_equivalence_exe_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="sas_macro_programming_to_r_equivalence_exe_files/libs/quarto-html/quarto-syntax-highlighting-17888a1159294d3eb470f19f6f52f5a5.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="sas_macro_programming_to_r_equivalence_exe_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="sas_macro_programming_to_r_equivalence_exe_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="sas_macro_programming_to_r_equivalence_exe_files/libs/bootstrap/bootstrap-90149ede68ca959310328622de74cb7a.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#shared-example-data" id="toc-shared-example-data" class="nav-link active" data-scroll-target="#shared-example-data"><span class="header-section-number">1</span> 0. Shared example data</a></li>
+  <li><a href="#the-mental-model" id="toc-the-mental-model" class="nav-link" data-scroll-target="#the-mental-model"><span class="header-section-number">2</span> 1. The mental model</a>
+  <ul class="collapse">
+  <li><a href="#sas-macro-processing" id="toc-sas-macro-processing" class="nav-link" data-scroll-target="#sas-macro-processing"><span class="header-section-number">2.1</span> 1.1 SAS macro processing</a></li>
+  <li><a href="#idiomatic-r" id="toc-idiomatic-r" class="nav-link" data-scroll-target="#idiomatic-r"><span class="header-section-number">2.2</span> 1.2 Idiomatic R</a></li>
+  </ul></li>
+  <li><a href="#core-equivalence-table" id="toc-core-equivalence-table" class="nav-link" data-scroll-target="#core-equivalence-table"><span class="header-section-number">3</span> 2. Core equivalence table</a>
+  <ul class="collapse">
+  <li><a href="#r" id="toc-r" class="nav-link" data-scroll-target="#r"><span class="header-section-number">3.1</span> R</a>
+  <ul class="collapse">
+  <li><a href="#important-difference" id="toc-important-difference" class="nav-link" data-scroll-target="#important-difference"><span class="header-section-number">3.1.1</span> Important difference</a></li>
+  </ul></li>
+  </ul></li>
+  <li><a href="#macro-definitions-and-parameters" id="toc-macro-definitions-and-parameters" class="nav-link" data-scroll-target="#macro-definitions-and-parameters"><span class="header-section-number">4</span> 4. Macro definitions and parameters</a>
+  <ul class="collapse">
+  <li><a href="#sas" id="toc-sas" class="nav-link" data-scroll-target="#sas"><span class="header-section-number">4.1</span> SAS</a></li>
+  <li><a href="#r-function" id="toc-r-function" class="nav-link" data-scroll-target="#r-function"><span class="header-section-number">4.2</span> R function</a></li>
+  </ul></li>
+  <li><a href="#conditional-logic-if-else" id="toc-conditional-logic-if-else" class="nav-link" data-scroll-target="#conditional-logic-if-else"><span class="header-section-number">5</span> 5. Conditional logic: <code>%IF</code> / <code>%ELSE</code></a>
+  <ul class="collapse">
+  <li><a href="#sas-1" id="toc-sas-1" class="nav-link" data-scroll-target="#sas-1"><span class="header-section-number">5.1</span> SAS</a></li>
+  <li><a href="#r-1" id="toc-r-1" class="nav-link" data-scroll-target="#r-1"><span class="header-section-number">5.2</span> R</a></li>
+  </ul></li>
+  <li><a href="#iteration-do" id="toc-iteration-do" class="nav-link" data-scroll-target="#iteration-do"><span class="header-section-number">6</span> 6. Iteration: <code>%DO</code></a>
+  <ul class="collapse">
+  <li><a href="#numeric-loop" id="toc-numeric-loop" class="nav-link" data-scroll-target="#numeric-loop"><span class="header-section-number">6.1</span> 6.1 Numeric loop</a></li>
+  <li><a href="#iterating-over-a-list-of-values" id="toc-iterating-over-a-list-of-values" class="nav-link" data-scroll-target="#iterating-over-a-list-of-values"><span class="header-section-number">6.2</span> 6.2 Iterating over a list of values</a></li>
+  </ul></li>
+  <li><a href="#sysfunc-eval-and-sysevalf" id="toc-sysfunc-eval-and-sysevalf" class="nav-link" data-scroll-target="#sysfunc-eval-and-sysevalf"><span class="header-section-number">7</span> 7. <code>%SYSFUNC</code>, <code>%EVAL</code>, and <code>%SYSEVALF</code></a></li>
+  <li><a href="#local-and-global-scope-local-global" id="toc-local-and-global-scope-local-global" class="nav-link" data-scroll-target="#local-and-global-scope-local-global"><span class="header-section-number">8</span> 8. Local and global scope: <code>%LOCAL</code> / <code>%GLOBAL</code></a></li>
+  <li><a href="#indirect-references-namei" id="toc-indirect-references-namei" class="nav-link" data-scroll-target="#indirect-references-namei"><span class="header-section-number">9</span> 9. Indirect references: <code>&amp;&amp;name&amp;i</code></a></li>
+  <li><a href="#call-symputx-symget-and-proc-sql-into" id="toc-call-symputx-symget-and-proc-sql-into" class="nav-link" data-scroll-target="#call-symputx-symget-and-proc-sql-into"><span class="header-section-number">10</span> 10. <code>CALL SYMPUTX</code>, <code>SYMGET</code>, and <code>PROC SQL INTO</code></a>
+  <ul class="collapse">
+  <li><a href="#sas-2" id="toc-sas-2" class="nav-link" data-scroll-target="#sas-2"><span class="header-section-number">10.1</span> SAS</a></li>
+  <li><a href="#r-2" id="toc-r-2" class="nav-link" data-scroll-target="#r-2"><span class="header-section-number">10.2</span> R</a></li>
+  </ul></li>
+  <li><a href="#include-and-modular-code" id="toc-include-and-modular-code" class="nav-link" data-scroll-target="#include-and-modular-code"><span class="header-section-number">11</span> 11. <code>%INCLUDE</code> and modular code</a></li>
+  <li><a href="#text-generation-versus-data-driven-programming" id="toc-text-generation-versus-data-driven-programming" class="nav-link" data-scroll-target="#text-generation-versus-data-driven-programming"><span class="header-section-number">12</span> 12. Text generation versus data-driven programming</a></li>
+  <li><a href="#sas-macro-quoting-and-r-strings" id="toc-sas-macro-quoting-and-r-strings" class="nav-link" data-scroll-target="#sas-macro-quoting-and-r-strings"><span class="header-section-number">13</span> 13. SAS macro quoting and R strings</a></li>
+  <li><a href="#when-the-r-macro-package-may-be-relevant" id="toc-when-the-r-macro-package-may-be-relevant" class="nav-link" data-scroll-target="#when-the-r-macro-package-may-be-relevant"><span class="header-section-number">14</span> 14. When the R <code>macro</code> package may be relevant</a></li>
+  <li><a href="#migration-checklist" id="toc-migration-checklist" class="nav-link" data-scroll-target="#migration-checklist"><span class="header-section-number">15</span> 15. Migration checklist</a></li>
+  <li><a href="#compact-reference-sas-macro-to-r" id="toc-compact-reference-sas-macro-to-r" class="nav-link" data-scroll-target="#compact-reference-sas-macro-to-r"><span class="header-section-number">16</span> 16. Compact reference: SAS macro to R</a></li>
+  <li><a href="#further-reading" id="toc-further-reading" class="nav-link" data-scroll-target="#further-reading"><span class="header-section-number">17</span> 17. Further reading</a></li>
+  <li><a href="#returning-values-from-functions-return-and-implicit-return" id="toc-returning-values-from-functions-return-and-implicit-return" class="nav-link" data-scroll-target="#returning-values-from-functions-return-and-implicit-return"><span class="header-section-number">18</span> 18. Returning values from functions: <code>return()</code> and implicit return</a></li>
+  <li><a href="#functions-that-create-one-data-frame" id="toc-functions-that-create-one-data-frame" class="nav-link" data-scroll-target="#functions-that-create-one-data-frame"><span class="header-section-number">19</span> 19. Functions that create one data frame</a></li>
+  <li><a href="#functions-that-create-multiple-data-frames" id="toc-functions-that-create-multiple-data-frames" class="nav-link" data-scroll-target="#functions-that-create-multiple-data-frames"><span class="header-section-number">20</span> 20. Functions that create multiple data frames</a>
+  <ul class="collapse">
+  <li><a href="#returning-several-derived-datasets" id="toc-returning-several-derived-datasets" class="nav-link" data-scroll-target="#returning-several-derived-datasets"><span class="header-section-number">20.1</span> 20.1 Returning several derived datasets</a></li>
+  </ul></li>
+  <li><a href="#sas-data-steps-and-procedures-that-produce-datasets" id="toc-sas-data-steps-and-procedures-that-produce-datasets" class="nav-link" data-scroll-target="#sas-data-steps-and-procedures-that-produce-datasets"><span class="header-section-number">21</span> 21. SAS DATA steps and procedures that produce datasets</a>
+  <ul class="collapse">
+  <li><a href="#if-the-function-should-save-datasets-to-disk" id="toc-if-the-function-should-save-datasets-to-disk" class="nav-link" data-scroll-target="#if-the-function-should-save-datasets-to-disk"><span class="header-section-number">21.1</span> 21.1 If the function should save datasets to disk</a></li>
+  </ul></li>
+  <li><a href="#mapping-sas-output-patterns-to-r-return-patterns" id="toc-mapping-sas-output-patterns-to-r-return-patterns" class="nav-link" data-scroll-target="#mapping-sas-output-patterns-to-r-return-patterns"><span class="header-section-number">22</span> 22. Mapping SAS output patterns to R return patterns</a></li>
+  </ul>
+<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="sas_macro_programming_to_r_equivalence_exe.pdf"><i class="bi bi-file-pdf"></i>PDF</a></li></ul></div></nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">SAS Macro Programming and R: An Equivalence Guide</h1>
+<p class="subtitle lead">Concepts, patterns, and migration strategies</p>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>Prepared with ChatGPT </p>
+          </div>
+  </div>
+    
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">October 23, 2026</p>
+    </div>
+  </div>
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p># Purpose and scope</p>
+<p>SAS macro programming and R solve overlapping but not identical problems.</p>
+<ul>
+<li><strong>SAS macro language</strong> is a text-generation and code-parameterization system. Macro statements execute before the generated SAS code is compiled and run.</li>
+<li><strong>R</strong> is a general-purpose programming language. Its functions, arguments, environments, control flow, and data structures usually provide a more direct and maintainable way to express the same logic.</li>
+<li>The R package <strong><code>macro</code></strong> provides a SAS-inspired macro preprocessor for R. It may help with compatibility-oriented translations, but it is not the default recommendation for new R code.</li>
+</ul>
+<p>This guide focuses on practical equivalence: how to translate macro-driven SAS workflows into idiomatic R, while also identifying where a literal macro-style translation may be useful.</p>
+<section id="shared-example-data" class="level1" data-number="1">
+<h1 data-number="1"><span class="header-section-number">1</span> 0. Shared example data</h1>
+<p>All chunks below are <strong>self-contained and reproducible</strong>. They rely on a small set of example objects created once here. Every later chunk that needs a table uses the object directly (and, where a mutation is shown, works on a <code>copy()</code> of it).</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">42</span>)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>people <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">id        =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">10</span>,</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">sex       =</span> <span class="fu">factor</span>(<span class="fu">rep</span>(<span class="fu">c</span>(<span class="st">"F"</span>, <span class="st">"M"</span>), <span class="dv">5</span>)),</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">year      =</span> <span class="fu">rep</span>(<span class="dv">2023</span><span class="sc">:</span><span class="dv">2025</span>, <span class="at">length.out =</span> <span class="dv">10</span>),</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">age       =</span> <span class="fu">c</span>(<span class="dv">17</span>, <span class="dv">25</span>, <span class="dv">70</span>, <span class="dv">30</span>, <span class="dv">45</span>, <span class="dv">66</span>, <span class="dv">12</span>, <span class="dv">50</span>, <span class="dv">80</span>, <span class="dv">40</span>),</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">income    =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">1500</span>, <span class="cn">NA</span>, <span class="dv">2200</span>, <span class="dv">3100</span>, <span class="dv">2800</span>, <span class="dv">0</span>, <span class="dv">3500</span>, <span class="cn">NA</span>, <span class="dv">2600</span>),</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">education =</span> <span class="fu">factor</span>(<span class="fu">rep</span>(<span class="fu">c</span>(<span class="st">"L"</span>, <span class="st">"M"</span>, <span class="st">"H"</span>), <span class="at">length.out =</span> <span class="dv">10</span>))</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>baseline_data <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">id =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">5</span>,</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">score =</span> <span class="fu">c</span>(<span class="dv">10</span>, <span class="dv">20</span>, <span class="dv">30</span>, <span class="dv">40</span>, <span class="dv">50</span>)</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>followup_data <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>  <span class="at">id =</span> <span class="dv">4</span><span class="sc">:</span><span class="dv">8</span>,</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>  <span class="at">score =</span> <span class="fu">c</span>(<span class="dv">45</span>, <span class="dv">55</span>, <span class="dv">65</span>, <span class="dv">75</span>, <span class="dv">85</span>)</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(people)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>   id sex year age income education
+1   1   F 2023  17      0         L
+2   2   M 2024  25   1500         M
+3   3   F 2025  70     NA         H
+4   4   M 2023  30   2200         L
+5   5   F 2024  45   3100         M
+6   6   M 2025  66   2800         H
+7   7   F 2023  12      0         L
+8   8   M 2024  50   3500         M
+9   9   F 2025  80     NA         H
+10 10   M 2023  40   2600         L</code></pre>
+</div>
+</div>
+</section>
+<section id="the-mental-model" class="level1" data-number="2">
+<h1 data-number="2"><span class="header-section-number">2</span> 1. The mental model</h1>
+<section id="sas-macro-processing" class="level2" data-number="2.1">
+<h2 data-number="2.1" class="anchored" data-anchor-id="sas-macro-processing"><span class="header-section-number">2.1</span> 1.1 SAS macro processing</h2>
+<p>A typical SAS macro workflow has two layers:</p>
+<ol type="1">
+<li>Macro processor resolves macro variables and executes macro statements.</li>
+<li>The resulting SAS text is submitted to the SAS compiler/runtime.</li>
+</ol>
+<pre class="sas"><code>%let year = 2025;
+
+%macro summarize(data=, year=);
+proc means data=&amp;data;
+where year = &amp;year;
+run;
+%mend;
+
+%summarize(data=work.population, year=&amp;year)</code></pre>
+<p>The macro generates SAS source text. <code>&amp;year</code> is substituted before the procedure runs.</p>
+</section>
+<section id="idiomatic-r" class="level2" data-number="2.2">
+<h2 data-number="2.2" class="anchored" data-anchor-id="idiomatic-r"><span class="header-section-number">2.2</span> 1.2 Idiomatic R</h2>
+<p>In R, the usual equivalent is a function with explicit arguments:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>summarize_data <span class="ot">&lt;-</span> <span class="cf">function</span>(data, year) {</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>subset_data <span class="ot">&lt;-</span> data[data<span class="sc">$</span>year <span class="sc">==</span> year, , drop <span class="ot">=</span> <span class="cn">FALSE</span>]</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(subset_data)</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="fu">summarize_data</span>(people, <span class="at">year =</span> <span class="dv">2025</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>       id      sex        year           age         income     education
+ Min.   :3.0   F:2   Min.   :2025   Min.   :66   Min.   :2800   H:3      
+ 1st Qu.:4.5   M:1   1st Qu.:2025   1st Qu.:68   1st Qu.:2800   L:0      
+ Median :6.0         Median :2025   Median :70   Median :2800   M:0      
+ Mean   :6.0         Mean   :2025   Mean   :72   Mean   :2800            
+ 3rd Qu.:7.5         3rd Qu.:2025   3rd Qu.:75   3rd Qu.:2800            
+ Max.   :9.0         Max.   :2025   Max.   :80   Max.   :2800            
+                                                 NA's   :2               </code></pre>
+</div>
+</div>
+<p>The function receives values, not fragments of source code. This distinction is central to migration.</p>
+</section>
+</section>
+<section id="core-equivalence-table" class="level1" data-number="3">
+<h1 data-number="3"><span class="header-section-number">3</span> 2. Core equivalence table</h1>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>SAS macro feature</th>
+<th>Typical purpose</th>
+<th>Idiomatic R equivalent</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>%LET name=value;</code></td>
+<td>Define macro variable</td>
+<td><code>name &lt;- value</code></td>
+<td>R objects have types; macro variables are text</td>
+</tr>
+<tr class="even">
+<td><code>&amp;name</code></td>
+<td>Resolve macro variable</td>
+<td>Use object/argument <code>name</code></td>
+<td>No textual substitution needed in ordinary R</td>
+</tr>
+<tr class="odd">
+<td><code>%MACRO ... %MEND;</code></td>
+<td>Define reusable generator</td>
+<td><code>function(...) {}</code></td>
+<td>Function returns values or performs explicit work</td>
+</tr>
+<tr class="even">
+<td><code>%macro(arg=val)</code></td>
+<td>Invoke macro</td>
+<td><code>fun(arg = val)</code></td>
+<td>Named arguments are usually clearer</td>
+</tr>
+<tr class="odd">
+<td><code>%IF ... %THEN</code></td>
+<td>Conditional code generation</td>
+<td><code>if (...) {}</code></td>
+<td>R condition must be a length-one logical</td>
+</tr>
+<tr class="even">
+<td><code>%ELSE</code></td>
+<td>Alternative branch</td>
+<td><code>else {}</code></td>
+<td>Standard R control flow</td>
+</tr>
+<tr class="odd">
+<td><code>%DO i=1 %TO n;</code></td>
+<td>Repeated generation</td>
+<td><code>for (i in seq_len(n)) {}</code></td>
+<td><code>seq_len(0)</code> safely returns <code>integer(0)</code></td>
+</tr>
+<tr class="even">
+<td><code>%DO %WHILE(...)</code></td>
+<td>Conditional repetition</td>
+<td><code>while (...) {}</code></td>
+<td>Use explicit state updates</td>
+</tr>
+<tr class="odd">
+<td><code>%DO %UNTIL(...)</code></td>
+<td>Repeat until condition</td>
+<td><code>repeat { ...; if (cond) break }</code></td>
+<td>R has no direct <code>until</code> statement</td>
+</tr>
+<tr class="even">
+<td><code>%SYSFUNC(f(...))</code></td>
+<td>Call DATA step function in macro processor</td>
+<td>Call R function <code>f(...)</code></td>
+<td>R functions operate on typed values</td>
+</tr>
+<tr class="odd">
+<td><code>%SYSEVALF(expr)</code></td>
+<td>Evaluate numeric expression</td>
+<td><code>eval()</code> or ordinary arithmetic</td>
+<td>Prefer direct arithmetic; <code>eval()</code> is rarely needed</td>
+</tr>
+<tr class="even">
+<td><code>%EVAL(expr)</code></td>
+<td>Integer expression evaluation</td>
+<td>Integer arithmetic / <code>as.integer()</code></td>
+<td>Be explicit about numeric types</td>
+</tr>
+<tr class="odd">
+<td><code>%STR(...)</code>, <code>%NRSTR(...)</code></td>
+<td>Mask macro special characters</td>
+<td>Character strings / quoting</td>
+<td>R string literals use quotes and escapes</td>
+</tr>
+<tr class="even">
+<td><code>%SUPERQ(name)</code></td>
+<td>Protect macro-variable value</td>
+<td>Pass character value as data</td>
+<td>Avoid code construction where possible</td>
+</tr>
+<tr class="odd">
+<td><code>%UNQUOTE(...)</code></td>
+<td>Remove macro quoting</td>
+<td>Usually unnecessary</td>
+<td>R does not have SAS macro quoting semantics</td>
+</tr>
+<tr class="even">
+<td><code>%LOCAL</code></td>
+<td>Local macro variable scope</td>
+<td>Function-local variables</td>
+<td>R lexical scoping differs; assignments can create local bindings</td>
+</tr>
+<tr class="odd">
+<td><code>%GLOBAL</code></td>
+<td>Global macro variable</td>
+<td>Global environment assignment</td>
+<td>Avoid <code>&lt;&lt;-</code> unless intentional</td>
+</tr>
+<tr class="even">
+<td><code>%PUT</code></td>
+<td>Write to SAS log</td>
+<td><code>message()</code>, <code>cat()</code>, <code>print()</code></td>
+<td><code>message()</code> is often suitable for diagnostics</td>
+</tr>
+<tr class="odd">
+<td><code>%INCLUDE file;</code></td>
+<td>Include SAS source</td>
+<td><code>source("file.R")</code></td>
+<td><code>source()</code> evaluates code in an environment</td>
+</tr>
+<tr class="even">
+<td><code>CALL SYMPUTX</code></td>
+<td>Create/update macro variable from DATA step</td>
+<td>Return value; assign to object</td>
+<td>Avoid hidden cross-step state</td>
+</tr>
+<tr class="odd">
+<td><code>SYMGET</code></td>
+<td>Read macro variable in DATA step</td>
+<td>Read an object/argument</td>
+<td>In R, pass dependencies explicitly</td>
+</tr>
+<tr class="even">
+<td><code>SYMEXIST</code></td>
+<td>Test macro variable existence</td>
+<td><code>exists("name", envir = env)</code></td>
+<td>Use explicit environment if needed</td>
+</tr>
+<tr class="odd">
+<td><code>PROC SQL INTO :var</code></td>
+<td>Store query result in macro variable</td>
+<td>Assign query result to R object</td>
+<td>Result may be vector, data frame, or scalar</td>
+</tr>
+<tr class="even">
+<td><code>&amp;var.</code></td>
+<td>Delimited macro reference</td>
+<td>R object reference</td>
+<td>SAS period delimiter has no direct R equivalent</td>
+</tr>
+<tr class="odd">
+<td><code>&amp;&amp;name&amp;i</code></td>
+<td>Indirect/nested resolution</td>
+<td>List/vector indexing or named lookup</td>
+<td>Replace generated names with structured objects</td>
+</tr>
+<tr class="even">
+<td>Macro-generated PROC/DATA steps</td>
+<td>Generate many SAS steps</td>
+<td>Function + loop / map</td>
+<td>Consider one vectorized operation first</td>
+</tr>
+</tbody>
+</table>
+<p># 3. Macro variables: <code>%LET</code> and <code>&amp;name</code></p>
+<p>## SAS</p>
+<pre class="sas"><code>%let input_ds = work.people;
+%let reference_year = 2025;
+
+proc freq data=&amp;input_ds;
+tables sex;
+where year = &amp;reference_year;
+run;</code></pre>
+<section id="r" class="level2" data-number="3.1">
+<h2 data-number="3.1" class="anchored" data-anchor-id="r"><span class="header-section-number">3.1</span> R</h2>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>input_data     <span class="ot">&lt;-</span> people</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>reference_year <span class="ot">&lt;-</span> <span class="dv">2025</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="fu">table</span>(input_data<span class="sc">$</span>sex[input_data<span class="sc">$</span>year <span class="sc">==</span> reference_year])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+F M 
+2 1 </code></pre>
+</div>
+</div>
+<section id="important-difference" class="level3" data-number="3.1.1">
+<h3 data-number="3.1.1" class="anchored" data-anchor-id="important-difference"><span class="header-section-number">3.1.1</span> Important difference</h3>
+<p>SAS macro variables are fundamentally character text. R objects can be numeric, logical, character, lists, or data frames. Prefer keeping values typed in R rather than converting everything to strings.</p>
+<p>If a character value is intended as a literal, keep it as a character value:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>region <span class="ot">&lt;-</span> <span class="st">"Bern"</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>region</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] "Bern"</code></pre>
+</div>
+</div>
+</section>
+</section>
+</section>
+<section id="macro-definitions-and-parameters" class="level1" data-number="4">
+<h1 data-number="4"><span class="header-section-number">4</span> 4. Macro definitions and parameters</h1>
+<section id="sas" class="level2" data-number="4.1">
+<h2 data-number="4.1" class="anchored" data-anchor-id="sas"><span class="header-section-number">4.1</span> SAS</h2>
+<pre class="sas"><code>%macro tabulate(data=, variable=);
+proc freq data=&amp;data;
+tables &amp;variable;
+run;
+%mend;
+
+%tabulate(data=work.people, variable=sex)</code></pre>
+</section>
+<section id="r-function" class="level2" data-number="4.2">
+<h2 data-number="4.2" class="anchored" data-anchor-id="r-function"><span class="header-section-number">4.2</span> R function</h2>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>tabulate_variable <span class="ot">&lt;-</span> <span class="cf">function</span>(data, variable) {</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">table</span>(data[[variable]], <span class="at">useNA =</span> <span class="st">"ifany"</span>)</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="fu">tabulate_variable</span>(people, <span class="st">"sex"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+F M 
+5 5 </code></pre>
+</div>
+</div>
+<p>For reusable R code, prefer a function argument that identifies a column by name, or use a well-documented tidy-evaluation interface. The <code>data[[variable]]</code> pattern is explicit and works well when <code>variable</code> is a character string.</p>
+</section>
+</section>
+<section id="conditional-logic-if-else" class="level1" data-number="5">
+<h1 data-number="5"><span class="header-section-number">5</span> 5. Conditional logic: <code>%IF</code> / <code>%ELSE</code></h1>
+<section id="sas-1" class="level2" data-number="5.1">
+<h2 data-number="5.1" class="anchored" data-anchor-id="sas-1"><span class="header-section-number">5.1</span> SAS</h2>
+<pre class="sas"><code>%macro choose(data=, mode=);
+%if %upcase(&amp;mode) = FULL %then %do;
+proc means data=&amp;data;
+run;
+%end;
+%else %do;
+proc freq data=&amp;data;
+run;
+%end;
+%mend;</code></pre>
+</section>
+<section id="r-1" class="level2" data-number="5.2">
+<h2 data-number="5.2" class="anchored" data-anchor-id="r-1"><span class="header-section-number">5.2</span> R</h2>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>choose_summary <span class="ot">&lt;-</span> <span class="cf">function</span>(data, <span class="at">mode =</span> <span class="st">"FULL"</span>) {</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>  mode <span class="ot">&lt;-</span> <span class="fu">toupper</span>(mode)</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (mode <span class="sc">==</span> <span class="st">"FULL"</span>) {</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">summary</span>(data)</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>  } <span class="cf">else</span> {</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">lapply</span>(data, <span class="cf">function</span>(x) <span class="cf">if</span> (<span class="fu">is.factor</span>(x)) <span class="fu">table</span>(x) <span class="cf">else</span> <span class="cn">NULL</span>)</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a><span class="fu">choose_summary</span>(people, <span class="at">mode =</span> <span class="st">"FULL"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>       id        sex        year           age            income     education
+ Min.   : 1.00   F:5   Min.   :2023   Min.   :12.00   Min.   :   0   H:3      
+ 1st Qu.: 3.25   M:5   1st Qu.:2023   1st Qu.:26.25   1st Qu.:1125   L:4      
+ Median : 5.50         Median :2024   Median :42.50   Median :2400   M:3      
+ Mean   : 5.50         Mean   :2024   Mean   :43.50   Mean   :1962            
+ 3rd Qu.: 7.75         3rd Qu.:2025   3rd Qu.:62.00   3rd Qu.:2875            
+ Max.   :10.00         Max.   :2025   Max.   :80.00   Max.   :3500            
+                                                      NA's   :2               </code></pre>
+</div>
+</div>
+<p>Use <code>if</code> for one logical value. For vectorized conditions, use <code>ifelse()</code> or (often more appropriately) indexing.</p>
+</section>
+</section>
+<section id="iteration-do" class="level1" data-number="6">
+<h1 data-number="6"><span class="header-section-number">6</span> 6. Iteration: <code>%DO</code></h1>
+<section id="numeric-loop" class="level2" data-number="6.1">
+<h2 data-number="6.1" class="anchored" data-anchor-id="numeric-loop"><span class="header-section-number">6.1</span> 6.1 Numeric loop</h2>
+<p>SAS:</p>
+<pre class="sas"><code>%macro run_years(first=, last=);
+%do year = &amp;first %to &amp;last;
+%put Processing &amp;year;
+%end;
+%mend;
+
+%run_years(first=2020, last=2025)</code></pre>
+<p>R:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>run_years <span class="ot">&lt;-</span> <span class="cf">function</span>(first, last) {</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (year <span class="cf">in</span> <span class="fu">seq.int</span>(first, last)) {</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">message</span>(<span class="st">"Processing "</span>, year)</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a><span class="fu">run_years</span>(<span class="dv">2020</span>, <span class="dv">2025</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Processing 2020</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Processing 2021</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Processing 2022</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Processing 2023</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Processing 2024</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Processing 2025</code></pre>
+</div>
+</div>
+<p>For loops that may have zero iterations, use <code>seq_len(n)</code>:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>n <span class="ot">&lt;-</span> <span class="dv">0</span>L</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (i <span class="cf">in</span> <span class="fu">seq_len</span>(n)) {</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="co"># work</span></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a><span class="fu">message</span>(<span class="st">"Number of iterations with n = 0: "</span>, <span class="fu">length</span>(<span class="fu">seq_len</span>(n)))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Number of iterations with n = 0: 0</code></pre>
+</div>
+</div>
+<p>Avoid <code>1:n</code> when <code>n</code> may be zero: in R, <code>1:0</code> is <code>c(1, 0)</code>, not an empty sequence.</p>
+</section>
+<section id="iterating-over-a-list-of-values" class="level2" data-number="6.2">
+<h2 data-number="6.2" class="anchored" data-anchor-id="iterating-over-a-list-of-values"><span class="header-section-number">6.2</span> 6.2 Iterating over a list of values</h2>
+<p>SAS often creates one step per value:</p>
+<pre class="sas"><code>%let vars = age income education;</code></pre>
+<p>R:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>vars <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"age"</span>, <span class="st">"income"</span>, <span class="st">"education"</span>)</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (variable <span class="cf">in</span> vars) {</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a><span class="fu">message</span>(<span class="st">"Processing variable: "</span>, variable)</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Processing variable: age</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Processing variable: income</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Processing variable: education</code></pre>
+</div>
+</div>
+<p>If the task can be vectorized or grouped in one operation, that may be simpler and faster than generating repeated code.</p>
+</section>
+</section>
+<section id="sysfunc-eval-and-sysevalf" class="level1" data-number="7">
+<h1 data-number="7"><span class="header-section-number">7</span> 7. <code>%SYSFUNC</code>, <code>%EVAL</code>, and <code>%SYSEVALF</code></h1>
+<p>SAS:</p>
+<pre class="sas"><code>%let next_year = %sysfunc(sum(&amp;year, 1));
+%let is_valid = %eval(&amp;year &gt;= 2020);</code></pre>
+<p>R:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb33"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>year      <span class="ot">&lt;-</span> <span class="dv">2025</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>next_year <span class="ot">&lt;-</span> year <span class="sc">+</span> <span class="dv">1</span></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>is_valid  <span class="ot">&lt;-</span> year <span class="sc">&gt;=</span> <span class="dv">2020</span></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>next_year</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 2026</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb35"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a>is_valid</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] TRUE</code></pre>
+</div>
+</div>
+<p>R normally evaluates arithmetic and logical expressions directly. <code>eval()</code> is not the routine equivalent of <code>%EVAL</code>; it evaluates an R language object in an environment and should only be used when dynamic evaluation is genuinely required.</p>
+</section>
+<section id="local-and-global-scope-local-global" class="level1" data-number="8">
+<h1 data-number="8"><span class="header-section-number">8</span> 8. Local and global scope: <code>%LOCAL</code> / <code>%GLOBAL</code></h1>
+<p>SAS:</p>
+<pre class="sas"><code>%macro example();
+%local temp;
+%let temp = 10;
+%put &amp;=temp;
+%mend;</code></pre>
+<p>R:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb38"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>example_scope <span class="ot">&lt;-</span> <span class="cf">function</span>() {</span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>temp <span class="ot">&lt;-</span> <span class="dv">10</span></span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a><span class="fu">message</span>(<span class="st">"temp = "</span>, temp)</span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a><span class="fu">example_scope</span>()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>temp = 10</code></pre>
+</div>
+</div>
+<p>R function assignments are local by default. SAS <code>%GLOBAL</code> is sometimes approximated by assignment in <code>.GlobalEnv</code>, but global mutation is usually less maintainable than returning a value.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb40"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a>result <span class="ot">&lt;-</span> <span class="cf">function</span>() {</span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>  value <span class="ot">&lt;-</span> <span class="dv">10</span></span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a>  value</span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a>x <span class="ot">&lt;-</span> <span class="fu">result</span>()</span>
+<span id="cb40-7"><a href="#cb40-7" aria-hidden="true" tabindex="-1"></a>x</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 10</code></pre>
+</div>
+</div>
+<p><code>&lt;&lt;-</code> searches parent environments and updates an existing binding; it is not a general-purpose replacement for <code>%GLOBAL</code>.</p>
+</section>
+<section id="indirect-references-namei" class="level1" data-number="9">
+<h1 data-number="9"><span class="header-section-number">9</span> 9. Indirect references: <code>&amp;&amp;name&amp;i</code></h1>
+<p>SAS macro code may use indirect resolution:</p>
+<pre class="sas"><code>%let name1 = age;
+%let name2 = income;
+
+%do i = 1 %to 2;
+%put &amp;&amp;name&amp;i;
+%end;</code></pre>
+<p>In R, use a vector or list rather than constructing variable names:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb43"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a>variable_names <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"age"</span>, <span class="st">"income"</span>)</span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (variable <span class="cf">in</span> variable_names) {</span>
+<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(variable)</span>
+<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] "age"
+[1] "income"</code></pre>
+</div>
+</div>
+<p>For multiple objects, prefer a named list:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb45"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a>datasets <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a><span class="at">baseline =</span> baseline_data,</span>
+<span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a><span class="at">followup =</span> followup_data</span>
+<span id="cb45-4"><a href="#cb45-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb45-5"><a href="#cb45-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-6"><a href="#cb45-6" aria-hidden="true" tabindex="-1"></a>datasets[[<span class="st">"baseline"</span>]]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  id score
+1  1    10
+2  2    20
+3  3    30
+4  4    40
+5  5    50</code></pre>
+</div>
+</div>
+<p>Avoid patterns such as <code>get(paste0("data", i))</code> when a list would express the structure directly.</p>
+</section>
+<section id="call-symputx-symget-and-proc-sql-into" class="level1" data-number="10">
+<h1 data-number="10"><span class="header-section-number">10</span> 10. <code>CALL SYMPUTX</code>, <code>SYMGET</code>, and <code>PROC SQL INTO</code></h1>
+<section id="sas-2" class="level2" data-number="10.1">
+<h2 data-number="10.1" class="anchored" data-anchor-id="sas-2"><span class="header-section-number">10.1</span> SAS</h2>
+<pre class="sas"><code>data _null_;
+set work.people end=last;
+if last then call symputx("n_obs", _n_);
+run;
+
+%put Number of observations: &amp;n_obs;</code></pre>
+</section>
+<section id="r-2" class="level2" data-number="10.2">
+<h2 data-number="10.2" class="anchored" data-anchor-id="r-2"><span class="header-section-number">10.2</span> R</h2>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb48"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a>n_obs <span class="ot">&lt;-</span> <span class="fu">nrow</span>(people)</span>
+<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a><span class="fu">message</span>(<span class="st">"Number of observations: "</span>, n_obs)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Number of observations: 10</code></pre>
+</div>
+</div>
+<p>SAS SQL:</p>
+<pre class="sas"><code>proc sql noprint;
+select count(*) into :n_obs
+from work.people;
+quit;</code></pre>
+<p>R:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb51"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a>n_obs <span class="ot">&lt;-</span> <span class="fu">nrow</span>(people)</span>
+<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a>n_obs</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 10</code></pre>
+</div>
+</div>
+<p>The R equivalent is usually a direct assignment. If a database is involved, use the database query result as an R object rather than routing it through a macro variable.</p>
+</section>
+</section>
+<section id="include-and-modular-code" class="level1" data-number="11">
+<h1 data-number="11"><span class="header-section-number">11</span> 11. <code>%INCLUDE</code> and modular code</h1>
+<p>SAS:</p>
+<pre class="sas"><code>%include "/project/programs/common.sas";</code></pre>
+<p>R:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb54"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb54-1"><a href="#cb54-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create a small temporary file to demonstrate source()</span></span>
+<span id="cb54-2"><a href="#cb54-2" aria-hidden="true" tabindex="-1"></a>tmp <span class="ot">&lt;-</span> <span class="fu">tempfile</span>(<span class="at">fileext =</span> <span class="st">".R"</span>)</span>
+<span id="cb54-3"><a href="#cb54-3" aria-hidden="true" tabindex="-1"></a><span class="fu">writeLines</span>(<span class="st">"common_value &lt;- 42"</span>, tmp)</span>
+<span id="cb54-4"><a href="#cb54-4" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(tmp)</span>
+<span id="cb54-5"><a href="#cb54-5" aria-hidden="true" tabindex="-1"></a>common_value</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 42</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb56"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a><span class="fu">unlink</span>(tmp)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>For larger R projects, consider package structure, explicit function exports, and project-relative paths (for example, with the <code>here</code> package) instead of relying on the current working directory.</p>
+</section>
+<section id="text-generation-versus-data-driven-programming" class="level1" data-number="12">
+<h1 data-number="12"><span class="header-section-number">12</span> 12. Text generation versus data-driven programming</h1>
+<p>A macro may generate a different variable name or procedure for each iteration. In R, first consider whether the operation can be expressed as:</p>
+<ul>
+<li>a function applied to a vector of names;</li>
+<li>a list of inputs and outputs;</li>
+<li>a grouped or vectorized data transformation;</li>
+<li>a single model call with formula construction;</li>
+<li>a loop that calls a function, rather than creating source code.</li>
+</ul>
+<p>Example: process several variables.</p>
+<p>SAS:</p>
+<pre class="sas"><code>%macro describe(data=, vars=);
+%do i = 1 %to %sysfunc(countw(&amp;vars));
+%let var = %scan(&amp;vars, &amp;i);
+proc means data=&amp;data;
+var &amp;var;
+run;
+%end;
+%mend;</code></pre>
+<p>R:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb58"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb58-1"><a href="#cb58-1" aria-hidden="true" tabindex="-1"></a>describe_vars <span class="ot">&lt;-</span> <span class="cf">function</span>(data, vars) {</span>
+<span id="cb58-2"><a href="#cb58-2" aria-hidden="true" tabindex="-1"></a><span class="fu">lapply</span>(vars, <span class="cf">function</span>(variable) {</span>
+<span id="cb58-3"><a href="#cb58-3" aria-hidden="true" tabindex="-1"></a>  x <span class="ot">&lt;-</span> data[[variable]]</span>
+<span id="cb58-4"><a href="#cb58-4" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.numeric</span>(x)) {</span>
+<span id="cb58-5"><a href="#cb58-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">return</span>(<span class="fu">c</span>(<span class="at">n =</span> <span class="fu">sum</span>(<span class="sc">!</span><span class="fu">is.na</span>(x)), <span class="at">mean =</span> <span class="cn">NA_real_</span>, <span class="at">sd =</span> <span class="cn">NA_real_</span>))</span>
+<span id="cb58-6"><a href="#cb58-6" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb58-7"><a href="#cb58-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">c</span>(</span>
+<span id="cb58-8"><a href="#cb58-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">n    =</span> <span class="fu">sum</span>(<span class="sc">!</span><span class="fu">is.na</span>(x)),</span>
+<span id="cb58-9"><a href="#cb58-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">mean =</span> <span class="fu">mean</span>(x, <span class="at">na.rm =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb58-10"><a href="#cb58-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">sd   =</span> <span class="fu">sd</span>(x, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb58-11"><a href="#cb58-11" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb58-12"><a href="#cb58-12" aria-hidden="true" tabindex="-1"></a>}) <span class="sc">|&gt;</span></span>
+<span id="cb58-13"><a href="#cb58-13" aria-hidden="true" tabindex="-1"></a>  stats<span class="sc">::</span><span class="fu">setNames</span>(vars)</span>
+<span id="cb58-14"><a href="#cb58-14" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb58-15"><a href="#cb58-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb58-16"><a href="#cb58-16" aria-hidden="true" tabindex="-1"></a><span class="fu">describe_vars</span>(people, <span class="fu">c</span>(<span class="st">"age"</span>, <span class="st">"income"</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>$age
+       n     mean       sd 
+10.00000 43.50000 23.13367 
+
+$income
+       n     mean       sd 
+   8.000 1962.500 1349.008 </code></pre>
+</div>
+</div>
+<p>This returns structured results rather than producing repeated source text.</p>
+</section>
+<section id="sas-macro-quoting-and-r-strings" class="level1" data-number="13">
+<h1 data-number="13"><span class="header-section-number">13</span> 13. SAS macro quoting and R strings</h1>
+<p>SAS macro quoting functions (<code>%STR</code>, <code>%NRSTR</code>, <code>%BQUOTE</code>, <code>%NRBQUOTE</code>, <code>%SUPERQ</code>, <code>%UNQUOTE</code>) protect characters from macro interpretation. They do not have one-to-one equivalents in R.</p>
+<p>In R, strings are data:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb60"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb60-1"><a href="#cb60-1" aria-hidden="true" tabindex="-1"></a>text_value <span class="ot">&lt;-</span> <span class="st">"A value containing &amp;, %, commas, and spaces"</span></span>
+<span id="cb60-2"><a href="#cb60-2" aria-hidden="true" tabindex="-1"></a>text_value</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] "A value containing &amp;, %, commas, and spaces"</code></pre>
+</div>
+</div>
+<p>When generating code, distinguish carefully between: - a character value; - an R symbol; - an R language expression; - source text.</p>
+<p>Prefer constructing language objects with <code>call()</code>, <code>as.name()</code>, or formula interfaces only when necessary. Avoid concatenating untrusted values into executable source code.</p>
+</section>
+<section id="when-the-r-macro-package-may-be-relevant" class="level1" data-number="14">
+<h1 data-number="14"><span class="header-section-number">14</span> 14. When the R <code>macro</code> package may be relevant</h1>
+<p>The R package <code>macro</code> offers a SAS-inspired macro preprocessor. It can be useful when: - a team needs to preserve macro-like syntax during a staged migration; - a large codebase contains extensive macro-driven source generation; - a compatibility layer is deliberately part of the migration plan.</p>
+<p>It should not be assumed to provide complete SAS macro processor compatibility. Validate syntax and behavior against the package’s current documentation and test representative edge cases. For new R development, native functions and ordinary R control flow are generally easier to test, debug, and maintain.</p>
+</section>
+<section id="migration-checklist" class="level1" data-number="15">
+<h1 data-number="15"><span class="header-section-number">15</span> 15. Migration checklist</h1>
+<ol type="1">
+<li><strong>Classify each macro.</strong> Is it a parameterized procedure, a loop, a conditional branch, or a source-code generator?</li>
+<li><strong>Replace macro parameters with function arguments.</strong></li>
+<li><strong>Replace macro variables with typed R objects.</strong></li>
+<li><strong>Replace <code>%IF</code> and <code>%DO</code> with <code>if</code>, <code>for</code>, <code>while</code>, or <code>lapply</code>/<code>Map</code>.</strong></li>
+<li><strong>Replace generated variable names with vectors and named lists.</strong></li>
+<li><strong>Replace <code>%INCLUDE</code> with <code>source()</code> or package functions.</strong></li>
+<li><strong>Replace macro-variable handoffs with explicit return values.</strong></li>
+<li><strong>Test edge cases:</strong> zero iterations, missing values, empty strings, unusual names, and type conversion.</li>
+<li><strong>Compare outputs</strong> with SAS results on representative production data.</li>
+<li><strong>Keep source generation only where it is truly needed.</strong></li>
+</ol>
+</section>
+<section id="compact-reference-sas-macro-to-r" class="level1" data-number="16">
+<h1 data-number="16"><span class="header-section-number">16</span> 16. Compact reference: SAS macro to R</h1>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>SAS</th>
+<th>R</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>%let x=5;</code></td>
+<td><code>x &lt;- 5</code></td>
+</tr>
+<tr class="even">
+<td><code>&amp;x</code></td>
+<td><code>x</code></td>
+</tr>
+<tr class="odd">
+<td><code>%macro f(a=); ... %mend;</code></td>
+<td><code>f &lt;- function(a) { ... }</code></td>
+</tr>
+<tr class="even">
+<td><code>%f(a=1)</code></td>
+<td><code>f(a = 1)</code></td>
+</tr>
+<tr class="odd">
+<td><code>%if condition %then %do;</code></td>
+<td><code>if (condition) {</code></td>
+</tr>
+<tr class="even">
+<td><code>%else %do;</code></td>
+<td><code>} else {</code></td>
+</tr>
+<tr class="odd">
+<td><code>%do i=1 %to n;</code></td>
+<td><code>for (i in seq_len(n)) {</code></td>
+</tr>
+<tr class="even">
+<td><code>%do %while(condition);</code></td>
+<td><code>while (condition) {</code></td>
+</tr>
+<tr class="odd">
+<td><code>%sysfunc(function(...))</code></td>
+<td><code>function(...)</code></td>
+</tr>
+<tr class="even">
+<td><code>%eval(a+b)</code></td>
+<td><code>a + b</code></td>
+</tr>
+<tr class="odd">
+<td><code>%local x;</code></td>
+<td>Function-local <code>x &lt;- ...</code></td>
+</tr>
+<tr class="even">
+<td><code>%global x;</code></td>
+<td>Prefer return value; global assignment only if intentional</td>
+</tr>
+<tr class="odd">
+<td><code>%put text;</code></td>
+<td><code>message("text")</code></td>
+</tr>
+<tr class="even">
+<td><code>%include "file.sas";</code></td>
+<td><code>source("file.R")</code></td>
+</tr>
+<tr class="odd">
+<td><code>call symputx("x", value);</code></td>
+<td><code>x &lt;- value</code> or return <code>value</code></td>
+</tr>
+<tr class="even">
+<td><code>symget("x")</code></td>
+<td>Pass/read object <code>x</code></td>
+</tr>
+<tr class="odd">
+<td><code>proc sql into :x</code></td>
+<td><code>x &lt;- query_result</code></td>
+</tr>
+<tr class="even">
+<td><code>&amp;&amp;name&amp;i</code></td>
+<td><code>names[i]</code> or <code>named_list[[key]]</code></td>
+</tr>
+<tr class="odd">
+<td><code>%scan(text, i)</code></td>
+<td><code>strsplit(text, ...)[[1]][i]</code> (or a string utility)</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="further-reading" class="level1" data-number="17">
+<h1 data-number="17"><span class="header-section-number">17</span> 17. Further reading</h1>
+<ul>
+<li>SAS documentation: <em>SAS Macro Language</em> and <em>Macro Language Reference</em>.</li>
+<li>R documentation: <em>An Introduction to R</em>, especially functions, control flow, and environments.</li>
+<li>R package <code>macro</code>: review its package documentation and examples before using it as a compatibility layer.</li>
+</ul>
+<p>The central migration principle is: <strong>translate the intent, not the macro syntax</strong>. SAS macros often generate source text; R functions usually operate on values and return structured results.</p>
+</section>
+<section id="returning-values-from-functions-return-and-implicit-return" class="level1" data-number="18">
+<h1 data-number="18"><span class="header-section-number">18</span> 18. Returning values from functions: <code>return()</code> and implicit return</h1>
+<p>In R, a function returns the value of its <strong>last evaluated expression</strong> unless <code>return()</code> is used to exit earlier. Explicit <code>return()</code> is useful for clarity and early exits.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb62"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb62-1"><a href="#cb62-1" aria-hidden="true" tabindex="-1"></a>double_value <span class="ot">&lt;-</span> <span class="cf">function</span>(x) {</span>
+<span id="cb62-2"><a href="#cb62-2" aria-hidden="true" tabindex="-1"></a>  result <span class="ot">&lt;-</span> x <span class="sc">*</span> <span class="dv">2</span></span>
+<span id="cb62-3"><a href="#cb62-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">return</span>(result)</span>
+<span id="cb62-4"><a href="#cb62-4" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb62-5"><a href="#cb62-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb62-6"><a href="#cb62-6" aria-hidden="true" tabindex="-1"></a>answer <span class="ot">&lt;-</span> <span class="fu">double_value</span>(<span class="dv">10</span>)</span>
+<span id="cb62-7"><a href="#cb62-7" aria-hidden="true" tabindex="-1"></a>answer</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 20</code></pre>
+</div>
+</div>
+<p>The same function can omit <code>return()</code> because the final expression is returned automatically:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb64"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb64-1"><a href="#cb64-1" aria-hidden="true" tabindex="-1"></a>double_value <span class="ot">&lt;-</span> <span class="cf">function</span>(x) {</span>
+<span id="cb64-2"><a href="#cb64-2" aria-hidden="true" tabindex="-1"></a>  result <span class="ot">&lt;-</span> x <span class="sc">*</span> <span class="dv">2</span></span>
+<span id="cb64-3"><a href="#cb64-3" aria-hidden="true" tabindex="-1"></a>  result</span>
+<span id="cb64-4"><a href="#cb64-4" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb64-5"><a href="#cb64-5" aria-hidden="true" tabindex="-1"></a><span class="fu">double_value</span>(<span class="dv">10</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 20</code></pre>
+</div>
+</div>
+<p>An early exit is a good use of <code>return()</code>:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb66"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb66-1"><a href="#cb66-1" aria-hidden="true" tabindex="-1"></a>safe_mean <span class="ot">&lt;-</span> <span class="cf">function</span>(x) {</span>
+<span id="cb66-2"><a href="#cb66-2" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">length</span>(x) <span class="sc">==</span> <span class="dv">0</span>L) {</span>
+<span id="cb66-3"><a href="#cb66-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">return</span>(<span class="cn">NA_real_</span>)</span>
+<span id="cb66-4"><a href="#cb66-4" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb66-5"><a href="#cb66-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mean</span>(x, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb66-6"><a href="#cb66-6" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb66-7"><a href="#cb66-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb66-8"><a href="#cb66-8" aria-hidden="true" tabindex="-1"></a><span class="fu">safe_mean</span>(<span class="fu">numeric</span>(<span class="dv">0</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] NA</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb68"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb68-1"><a href="#cb68-1" aria-hidden="true" tabindex="-1"></a><span class="fu">safe_mean</span>(<span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>, <span class="cn">NA</span>, <span class="dv">4</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 2.333333</code></pre>
+</div>
+</div>
+<p>The assignment <code>answer &lt;- double_value(10)</code> stores the returned value in the environment where the assignment is evaluated. The local variable <code>result</code> does not become global.</p>
+</section>
+<section id="functions-that-create-one-data-frame" class="level1" data-number="19">
+<h1 data-number="19"><span class="header-section-number">19</span> 19. Functions that create one data frame</h1>
+<p>A function can create a data frame locally and return it to the caller.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb70"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb70-1"><a href="#cb70-1" aria-hidden="true" tabindex="-1"></a>make_population_summary <span class="ot">&lt;-</span> <span class="cf">function</span>(data) {</span>
+<span id="cb70-2"><a href="#cb70-2" aria-hidden="true" tabindex="-1"></a>  result <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb70-3"><a href="#cb70-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">n        =</span> <span class="fu">nrow</span>(data),</span>
+<span id="cb70-4"><a href="#cb70-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">mean_age =</span> <span class="fu">mean</span>(data<span class="sc">$</span>age, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb70-5"><a href="#cb70-5" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb70-6"><a href="#cb70-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">return</span>(result)</span>
+<span id="cb70-7"><a href="#cb70-7" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb70-8"><a href="#cb70-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb70-9"><a href="#cb70-9" aria-hidden="true" tabindex="-1"></a>population_summary <span class="ot">&lt;-</span> <span class="fu">make_population_summary</span>(people)</span>
+<span id="cb70-10"><a href="#cb70-10" aria-hidden="true" tabindex="-1"></a>population_summary</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>   n mean_age
+1 10     43.5</code></pre>
+</div>
+</div>
+<p>Here, <code>result</code> is local to the function. <code>population_summary</code> is created in the caller’s environment. A concise equivalent is:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb72"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb72-1"><a href="#cb72-1" aria-hidden="true" tabindex="-1"></a>make_population_summary <span class="ot">&lt;-</span> <span class="cf">function</span>(data) {</span>
+<span id="cb72-2"><a href="#cb72-2" aria-hidden="true" tabindex="-1"></a><span class="fu">data.frame</span>(</span>
+<span id="cb72-3"><a href="#cb72-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">n        =</span> <span class="fu">nrow</span>(data),</span>
+<span id="cb72-4"><a href="#cb72-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">mean_age =</span> <span class="fu">mean</span>(data<span class="sc">$</span>age, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb72-5"><a href="#cb72-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb72-6"><a href="#cb72-6" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb72-7"><a href="#cb72-7" aria-hidden="true" tabindex="-1"></a>population_summary <span class="ot">&lt;-</span> <span class="fu">make_population_summary</span>(people)</span>
+<span id="cb72-8"><a href="#cb72-8" aria-hidden="true" tabindex="-1"></a>population_summary</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>   n mean_age
+1 10     43.5</code></pre>
+</div>
+</div>
+<p>A function can also return a transformed data frame:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb74"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb74-1"><a href="#cb74-1" aria-hidden="true" tabindex="-1"></a>add_age_group <span class="ot">&lt;-</span> <span class="cf">function</span>(data) {</span>
+<span id="cb74-2"><a href="#cb74-2" aria-hidden="true" tabindex="-1"></a>data<span class="sc">$</span>age_group <span class="ot">&lt;-</span> <span class="fu">ifelse</span>(data<span class="sc">$</span>age <span class="sc">&lt;</span> <span class="dv">18</span>, <span class="st">"Under 18"</span>, <span class="st">"18 or older"</span>)</span>
+<span id="cb74-3"><a href="#cb74-3" aria-hidden="true" tabindex="-1"></a>data</span>
+<span id="cb74-4"><a href="#cb74-4" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb74-5"><a href="#cb74-5" aria-hidden="true" tabindex="-1"></a>people_with_group <span class="ot">&lt;-</span> <span class="fu">add_age_group</span>(people)</span>
+<span id="cb74-6"><a href="#cb74-6" aria-hidden="true" tabindex="-1"></a>people_with_group[, <span class="fu">c</span>(<span class="st">"id"</span>, <span class="st">"age"</span>, <span class="st">"age_group"</span>)]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>   id age   age_group
+1   1  17    Under 18
+2   2  25 18 or older
+3   3  70 18 or older
+4   4  30 18 or older
+5   5  45 18 or older
+6   6  66 18 or older
+7   7  12    Under 18
+8   8  50 18 or older
+9   9  80 18 or older
+10 10  40 18 or older</code></pre>
+</div>
+</div>
+</section>
+<section id="functions-that-create-multiple-data-frames" class="level1" data-number="20">
+<h1 data-number="20"><span class="header-section-number">20</span> 20. Functions that create multiple data frames</h1>
+<p>When a function needs to return two or more datasets, return a <strong>named list</strong>. Lists can contain data frames of different sizes and shapes.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb76"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb76-1"><a href="#cb76-1" aria-hidden="true" tabindex="-1"></a>split_population <span class="ot">&lt;-</span> <span class="cf">function</span>(data) {</span>
+<span id="cb76-2"><a href="#cb76-2" aria-hidden="true" tabindex="-1"></a>  adults <span class="ot">&lt;-</span> data[data<span class="sc">$</span>age <span class="sc">&gt;=</span> <span class="dv">18</span>, , drop <span class="ot">=</span> <span class="cn">FALSE</span>]</span>
+<span id="cb76-3"><a href="#cb76-3" aria-hidden="true" tabindex="-1"></a>  minors <span class="ot">&lt;-</span> data[data<span class="sc">$</span>age <span class="sc">&lt;</span>  <span class="dv">18</span>, , drop <span class="ot">=</span> <span class="cn">FALSE</span>]</span>
+<span id="cb76-4"><a href="#cb76-4" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb76-5"><a href="#cb76-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">list</span>(</span>
+<span id="cb76-6"><a href="#cb76-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">adults =</span> adults,</span>
+<span id="cb76-7"><a href="#cb76-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">minors =</span> minors</span>
+<span id="cb76-8"><a href="#cb76-8" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb76-9"><a href="#cb76-9" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb76-10"><a href="#cb76-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb76-11"><a href="#cb76-11" aria-hidden="true" tabindex="-1"></a>population_parts <span class="ot">&lt;-</span> <span class="fu">split_population</span>(people)</span>
+<span id="cb76-12"><a href="#cb76-12" aria-hidden="true" tabindex="-1"></a>adults <span class="ot">&lt;-</span> population_parts<span class="sc">$</span>adults</span>
+<span id="cb76-13"><a href="#cb76-13" aria-hidden="true" tabindex="-1"></a>minors <span class="ot">&lt;-</span> population_parts<span class="sc">$</span>minors</span>
+<span id="cb76-14"><a href="#cb76-14" aria-hidden="true" tabindex="-1"></a><span class="fu">nrow</span>(adults)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 8</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb78"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb78-1"><a href="#cb78-1" aria-hidden="true" tabindex="-1"></a><span class="fu">nrow</span>(minors)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 2</code></pre>
+</div>
+</div>
+<p>The function returns one object—the list—which contains both data frames. The caller accesses each dataset by name.</p>
+<section id="returning-several-derived-datasets" class="level2" data-number="20.1">
+<h2 data-number="20.1" class="anchored" data-anchor-id="returning-several-derived-datasets"><span class="header-section-number">20.1</span> 20.1 Returning several derived datasets</h2>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb80"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb80-1"><a href="#cb80-1" aria-hidden="true" tabindex="-1"></a>build_outputs <span class="ot">&lt;-</span> <span class="cf">function</span>(data) {</span>
+<span id="cb80-2"><a href="#cb80-2" aria-hidden="true" tabindex="-1"></a>  cleaned <span class="ot">&lt;-</span> data[<span class="sc">!</span><span class="fu">is.na</span>(data<span class="sc">$</span>id), , drop <span class="ot">=</span> <span class="cn">FALSE</span>]</span>
+<span id="cb80-3"><a href="#cb80-3" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb80-4"><a href="#cb80-4" aria-hidden="true" tabindex="-1"></a>  summary_by_sex <span class="ot">&lt;-</span> <span class="fu">aggregate</span>(</span>
+<span id="cb80-5"><a href="#cb80-5" aria-hidden="true" tabindex="-1"></a>    age <span class="sc">~</span> sex,</span>
+<span id="cb80-6"><a href="#cb80-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> cleaned,</span>
+<span id="cb80-7"><a href="#cb80-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">FUN  =</span> <span class="cf">function</span>(x) <span class="fu">mean</span>(x, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb80-8"><a href="#cb80-8" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb80-9"><a href="#cb80-9" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb80-10"><a href="#cb80-10" aria-hidden="true" tabindex="-1"></a>  missing_ids <span class="ot">&lt;-</span> data[<span class="fu">is.na</span>(data<span class="sc">$</span>id), , drop <span class="ot">=</span> <span class="cn">FALSE</span>]</span>
+<span id="cb80-11"><a href="#cb80-11" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb80-12"><a href="#cb80-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">list</span>(</span>
+<span id="cb80-13"><a href="#cb80-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">cleaned        =</span> cleaned,</span>
+<span id="cb80-14"><a href="#cb80-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">summary_by_sex =</span> summary_by_sex,</span>
+<span id="cb80-15"><a href="#cb80-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">missing_ids    =</span> missing_ids</span>
+<span id="cb80-16"><a href="#cb80-16" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb80-17"><a href="#cb80-17" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb80-18"><a href="#cb80-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb80-19"><a href="#cb80-19" aria-hidden="true" tabindex="-1"></a>outputs <span class="ot">&lt;-</span> <span class="fu">build_outputs</span>(people)</span>
+<span id="cb80-20"><a href="#cb80-20" aria-hidden="true" tabindex="-1"></a>cleaned_data       <span class="ot">&lt;-</span> outputs<span class="sc">$</span>cleaned</span>
+<span id="cb80-21"><a href="#cb80-21" aria-hidden="true" tabindex="-1"></a>sex_summary        <span class="ot">&lt;-</span> outputs<span class="sc">$</span>summary_by_sex</span>
+<span id="cb80-22"><a href="#cb80-22" aria-hidden="true" tabindex="-1"></a>records_missing_id <span class="ot">&lt;-</span> outputs<span class="sc">$</span>missing_ids</span>
+<span id="cb80-23"><a href="#cb80-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb80-24"><a href="#cb80-24" aria-hidden="true" tabindex="-1"></a>sex_summary</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  sex  age
+1   F 44.8
+2   M 42.2</code></pre>
+</div>
+</div>
+<p>This approach is explicit and testable. It avoids creating global variables merely to transfer results.</p>
+</section>
+</section>
+<section id="sas-data-steps-and-procedures-that-produce-datasets" class="level1" data-number="21">
+<h1 data-number="21"><span class="header-section-number">21</span> 21. SAS DATA steps and procedures that produce datasets</h1>
+<p>SAS programs often create named output datasets as a side effect:</p>
+<pre class="sas"><code>data work.adults work.minors;
+set work.people;
+if age &gt;= 18 then output work.adults;
+else output work.minors;
+run;</code></pre>
+<p>An idiomatic R function normally returns its outputs explicitly:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb83"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb83-1"><a href="#cb83-1" aria-hidden="true" tabindex="-1"></a>split_population <span class="ot">&lt;-</span> <span class="cf">function</span>(data) {</span>
+<span id="cb83-2"><a href="#cb83-2" aria-hidden="true" tabindex="-1"></a><span class="fu">list</span>(</span>
+<span id="cb83-3"><a href="#cb83-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">adults =</span> data[data<span class="sc">$</span>age <span class="sc">&gt;=</span> <span class="dv">18</span>, , <span class="at">drop =</span> <span class="cn">FALSE</span>],</span>
+<span id="cb83-4"><a href="#cb83-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">minors =</span> data[data<span class="sc">$</span>age <span class="sc">&lt;</span>  <span class="dv">18</span>, , <span class="at">drop =</span> <span class="cn">FALSE</span>]</span>
+<span id="cb83-5"><a href="#cb83-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb83-6"><a href="#cb83-6" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb83-7"><a href="#cb83-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb83-8"><a href="#cb83-8" aria-hidden="true" tabindex="-1"></a>result <span class="ot">&lt;-</span> <span class="fu">split_population</span>(people)</span>
+<span id="cb83-9"><a href="#cb83-9" aria-hidden="true" tabindex="-1"></a>adults <span class="ot">&lt;-</span> result<span class="sc">$</span>adults</span>
+<span id="cb83-10"><a href="#cb83-10" aria-hidden="true" tabindex="-1"></a>minors <span class="ot">&lt;-</span> result<span class="sc">$</span>minors</span>
+<span id="cb83-11"><a href="#cb83-11" aria-hidden="true" tabindex="-1"></a><span class="fu">nrow</span>(adults)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 8</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb85"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb85-1"><a href="#cb85-1" aria-hidden="true" tabindex="-1"></a><span class="fu">nrow</span>(minors)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 2</code></pre>
+</div>
+</div>
+<p>SAS names output datasets in the DATA step. The R function returns a list of objects, and the caller chooses the names to which they are assigned. This makes the function reusable with different input and output names.</p>
+<section id="if-the-function-should-save-datasets-to-disk" class="level2" data-number="21.1">
+<h2 data-number="21.1" class="anchored" data-anchor-id="if-the-function-should-save-datasets-to-disk"><span class="header-section-number">21.1</span> 21.1 If the function should save datasets to disk</h2>
+<p>Creating an in-memory data frame and writing it to a file are different responsibilities. If persistence is required, make it explicit:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb87"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb87-1"><a href="#cb87-1" aria-hidden="true" tabindex="-1"></a>write_population_outputs <span class="ot">&lt;-</span> <span class="cf">function</span>(data, output_dir) {</span>
+<span id="cb87-2"><a href="#cb87-2" aria-hidden="true" tabindex="-1"></a><span class="fu">dir.create</span>(output_dir, <span class="at">showWarnings =</span> <span class="cn">FALSE</span>, <span class="at">recursive =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb87-3"><a href="#cb87-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb87-4"><a href="#cb87-4" aria-hidden="true" tabindex="-1"></a>adults <span class="ot">&lt;-</span> data[data<span class="sc">$</span>age <span class="sc">&gt;=</span> <span class="dv">18</span>, , drop <span class="ot">=</span> <span class="cn">FALSE</span>]</span>
+<span id="cb87-5"><a href="#cb87-5" aria-hidden="true" tabindex="-1"></a>minors <span class="ot">&lt;-</span> data[data<span class="sc">$</span>age <span class="sc">&lt;</span>  <span class="dv">18</span>, , drop <span class="ot">=</span> <span class="cn">FALSE</span>]</span>
+<span id="cb87-6"><a href="#cb87-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb87-7"><a href="#cb87-7" aria-hidden="true" tabindex="-1"></a><span class="fu">saveRDS</span>(adults, <span class="fu">file.path</span>(output_dir, <span class="st">"adults.rds"</span>))</span>
+<span id="cb87-8"><a href="#cb87-8" aria-hidden="true" tabindex="-1"></a><span class="fu">saveRDS</span>(minors, <span class="fu">file.path</span>(output_dir, <span class="st">"minors.rds"</span>))</span>
+<span id="cb87-9"><a href="#cb87-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb87-10"><a href="#cb87-10" aria-hidden="true" tabindex="-1"></a><span class="fu">invisible</span>(<span class="fu">list</span>(<span class="at">adults =</span> adults, <span class="at">minors =</span> minors))</span>
+<span id="cb87-11"><a href="#cb87-11" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb87-12"><a href="#cb87-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb87-13"><a href="#cb87-13" aria-hidden="true" tabindex="-1"></a>tmp_dir <span class="ot">&lt;-</span> <span class="fu">tempfile</span>(<span class="st">"population_outputs_"</span>)</span>
+<span id="cb87-14"><a href="#cb87-14" aria-hidden="true" tabindex="-1"></a>written <span class="ot">&lt;-</span> <span class="fu">write_population_outputs</span>(people, tmp_dir)</span>
+<span id="cb87-15"><a href="#cb87-15" aria-hidden="true" tabindex="-1"></a><span class="fu">names</span>(written)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] "adults" "minors"</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb89"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb89-1"><a href="#cb89-1" aria-hidden="true" tabindex="-1"></a><span class="fu">list.files</span>(tmp_dir)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] "adults.rds" "minors.rds"</code></pre>
+</div>
+</div>
+<p><code>invisible()</code> suppresses automatic printing at the console; the list can still be assigned by the caller.</p>
+</section>
+</section>
+<section id="mapping-sas-output-patterns-to-r-return-patterns" class="level1" data-number="22">
+<h1 data-number="22"><span class="header-section-number">22</span> 22. Mapping SAS output patterns to R return patterns</h1>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>SAS pattern</th>
+<th>Recommended R pattern</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>DATA step creates one output dataset</td>
+<td>Function returns one data frame</td>
+</tr>
+<tr class="even">
+<td>DATA step creates multiple output datasets</td>
+<td>Function returns a named list of data frames</td>
+</tr>
+<tr class="odd">
+<td><code>PROC SQL</code> creates a table</td>
+<td>Assign the query result to an R object, or return it</td>
+</tr>
+<tr class="even">
+<td>Macro variable carries a calculated result</td>
+<td>Return the value from a function</td>
+</tr>
+<tr class="odd">
+<td>Macro creates several intermediate datasets</td>
+<td>Return a named list, or use a clear pipeline</td>
+</tr>
+<tr class="even">
+<td>Output dataset must be written permanently</td>
+<td>Explicitly write it with <code>saveRDS()</code>, <code>write.csv()</code>, or a database writer</td>
+</tr>
+<tr class="odd">
+<td>Function updates an existing object</td>
+<td>Prefer returning the updated object and assigning it at the call site</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Recommended principle:</strong> use a function’s return value to communicate data. Avoid assigning output datasets into <code>.GlobalEnv</code> from inside a function unless global mutation is an explicit design requirement.</p>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.10.20">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Statistical tabulations with data.table and SAS-style formats</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="data_table_tab_with_metadata_from_list_files/libs/clipboard/clipboard.min.js"></script>
+<script src="data_table_tab_with_metadata_from_list_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="data_table_tab_with_metadata_from_list_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="data_table_tab_with_metadata_from_list_files/libs/quarto-html/popper.min.js"></script>
+<script src="data_table_tab_with_metadata_from_list_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="data_table_tab_with_metadata_from_list_files/libs/quarto-html/anchor.min.js"></script>
+<link href="data_table_tab_with_metadata_from_list_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="data_table_tab_with_metadata_from_list_files/libs/quarto-html/quarto-syntax-highlighting-17888a1159294d3eb470f19f6f52f5a5.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="data_table_tab_with_metadata_from_list_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="data_table_tab_with_metadata_from_list_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="data_table_tab_with_metadata_from_list_files/libs/bootstrap/bootstrap-56b41ada49dd8e353d0bdbb7b5195f53.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#objective" id="toc-objective" class="nav-link active" data-scroll-target="#objective"><span class="header-section-number">1</span> Objective</a></li>
+  <li><a href="#packages-and-format-definitions" id="toc-packages-and-format-definitions" class="nav-link" data-scroll-target="#packages-and-format-definitions"><span class="header-section-number">2</span> 1. Packages and format definitions</a></li>
+  <li><a href="#reproducible-example-data" id="toc-reproducible-example-data" class="nav-link" data-scroll-target="#reproducible-example-data"><span class="header-section-number">3</span> 2. Reproducible example data</a></li>
+  <li><a href="#validate-format-definitions" id="toc-validate-format-definitions" class="nav-link" data-scroll-target="#validate-format-definitions"><span class="header-section-number">4</span> 3. Validate format definitions</a></li>
+  <li><a href="#internal-helper-to-add-value-labels" id="toc-internal-helper-to-add-value-labels" class="nav-link" data-scroll-target="#internal-helper-to-add-value-labels"><span class="header-section-number">5</span> 4. Internal helper to add value labels</a></li>
+  <li><a href="#frequency-table-freq" id="toc-frequency-table-freq" class="nav-link" data-scroll-target="#frequency-table-freq"><span class="header-section-number">6</span> 5. Frequency table: <code>freq()</code></a></li>
+  <li><a href="#cross-tabulation-cross_freq" id="toc-cross-tabulation-cross_freq" class="nav-link" data-scroll-target="#cross-tabulation-cross_freq"><span class="header-section-number">7</span> 6. Cross-tabulation: <code>cross_freq()</code></a></li>
+  <li><a href="#wide-cross-tabulation-with-margins-cross_freq_wide" id="toc-wide-cross-tabulation-with-margins-cross_freq_wide" class="nav-link" data-scroll-target="#wide-cross-tabulation-with-margins-cross_freq_wide"><span class="header-section-number">8</span> 7. Wide cross-tabulation with margins: <code>cross_freq_wide()</code></a></li>
+  <li><a href="#descriptive-statistics-by-group-summary_by" id="toc-descriptive-statistics-by-group-summary_by" class="nav-link" data-scroll-target="#descriptive-statistics-by-group-summary_by"><span class="header-section-number">9</span> 8. Descriptive statistics by group: <code>summary_by()</code></a></li>
+  <li><a href="#a-longitudinal-example" id="toc-a-longitudinal-example" class="nav-link" data-scroll-target="#a-longitudinal-example"><span class="header-section-number">10</span> 9. A longitudinal example</a></li>
+  <li><a href="#exporting-results" id="toc-exporting-results" class="nav-link" data-scroll-target="#exporting-results"><span class="header-section-number">11</span> 10. Exporting results</a></li>
+  <li><a href="#design-choices-and-limitations" id="toc-design-choices-and-limitations" class="nav-link" data-scroll-target="#design-choices-and-limitations"><span class="header-section-number">12</span> 11. Design choices and limitations</a></li>
+  </ul>
+<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="data_table_tab_with_metadata_from_list.docx"><i class="bi bi-file-word"></i>MS Word</a></li></ul></div></nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Statistical tabulations with data.table and SAS-style formats</h1>
+<p class="subtitle lead">Reproducible examples with format metadata stored in a named list</p>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="objective" class="level1" data-number="1">
+<h1 data-number="1"><span class="header-section-number">1</span> Objective</h1>
+<p>This tutorial builds a small tabulation toolkit around <code>data.table</code>. It separates:</p>
+<ol type="1">
+<li><strong>Data and calculations</strong>: <code>data.table</code>.</li>
+<li><strong>Value labels / formats</strong>: a named R list.</li>
+<li><strong>Presentation</strong>: can be added later with <code>gt</code>, <code>flextable</code>, or Quarto.</li>
+</ol>
+<p>A format is supplied explicitly, for example:</p>
+<p>Codes not listed in a format are preserved as their original values (for example, <code>-1</code>). Missing values remain <code>NA</code> unless the reporting function is explicitly asked to display them as a category.</p>
+</section>
+<section id="packages-and-format-definitions" class="level1" data-number="2">
+<h1 data-number="2"><span class="header-section-number">2</span> 1. Packages and format definitions</h1>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(data.table)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>formats <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">SEXFMTFR =</span> <span class="fu">c</span>(</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"1"</span> <span class="ot">=</span> <span class="st">"Hommes"</span>,</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"2"</span> <span class="ot">=</span> <span class="st">"Femmes"</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>  ),</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">EDUFMTFR =</span> <span class="fu">c</span>(</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">"1"</span> <span class="ot">=</span> <span class="st">"Obligatoire"</span>,</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">"2"</span> <span class="ot">=</span> <span class="st">"Secondaire II"</span>,</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">"3"</span> <span class="ot">=</span> <span class="st">"Tertiaire"</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>formats</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>$SEXFMTFR
+       1        2 
+"Hommes" "Femmes" 
+
+$EDUFMTFR
+              1               2               3 
+  "Obligatoire" "Secondaire II"     "Tertiaire" </code></pre>
+</div>
+</div>
+<p>Each element of <code>formats</code> is a named character vector:</p>
+<ul>
+<li>the element name is the format name;</li>
+<li>each vector name is a source code;</li>
+<li>each vector value is its label.</li>
+</ul>
+<p>Codes are stored as character strings. This supports numeric-looking codes and character codes such as <code>"A"</code> or <code>"01"</code>.</p>
+</section>
+<section id="reproducible-example-data" class="level1" data-number="3">
+<h1 data-number="3"><span class="header-section-number">3</span> 2. Reproducible example data</h1>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">2026</span>)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>n <span class="ot">&lt;-</span> <span class="dv">1000</span>L</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>DT <span class="ot">&lt;-</span> <span class="fu">data.table</span>(</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">id =</span> <span class="fu">seq_len</span>(n),</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">year =</span> <span class="fu">sample</span>(<span class="dv">2022</span><span class="sc">:</span><span class="dv">2025</span>, n, <span class="at">replace =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">sex =</span> <span class="fu">sample</span>(<span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>, <span class="sc">-</span><span class="dv">1</span>, <span class="cn">NA</span>), n, <span class="at">replace =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>               <span class="at">prob =</span> <span class="fu">c</span>(.<span class="dv">47</span>, .<span class="dv">49</span>, .<span class="dv">02</span>, .<span class="dv">02</span>)),</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">education =</span> <span class="fu">sample</span>(<span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">9</span>, <span class="cn">NA</span>), n, <span class="at">replace =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>                     <span class="at">prob =</span> <span class="fu">c</span>(.<span class="dv">15</span>, .<span class="dv">45</span>, .<span class="dv">35</span>, .<span class="dv">03</span>, .<span class="dv">02</span>)),</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">income =</span> <span class="fu">round</span>(<span class="fu">rnorm</span>(n, <span class="at">mean =</span> <span class="dv">65000</span>, <span class="at">sd =</span> <span class="dv">18000</span>), <span class="dv">0</span>)</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>DT[income <span class="sc">&lt;</span> <span class="dv">0</span>, income <span class="sc">:</span><span class="er">=</span> <span class="dv">0</span>]</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>DT[]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>         id  year   sex education income
+      &lt;int&gt; &lt;int&gt; &lt;num&gt;     &lt;num&gt;  &lt;num&gt;
+   1:     1  2022     1         9  33468
+   2:     2  2022     1         2  56385
+   3:     3  2022     1         1  46856
+   4:     4  2023     2         3  65937
+   5:     5  2022     2         1  72082
+  ---                                   
+ 996:   996  2023     2         3 110055
+ 997:   997  2025     1         3  72812
+ 998:   998  2025     2         2  58856
+ 999:   999  2023    NA         2  43118
+1000:  1000  2024    NA         2 101322</code></pre>
+</div>
+</div>
+<p>Here, <code>-1</code> is deliberately not included in <code>SEXFMTFR</code>, and <code>9</code> is deliberately not included in <code>EDUFMTFR</code>. These codes remain visible in tabulations.</p>
+</section>
+<section id="validate-format-definitions" class="level1" data-number="4">
+<h1 data-number="4"><span class="header-section-number">4</span> 3. Validate format definitions</h1>
+<p>The validation function checks that:</p>
+<ul>
+<li><code>formats</code> is a named list;</li>
+<li>every format is a named character vector;</li>
+<li>format names and codes are unique;</li>
+<li>labels are not missing.</li>
+</ul>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>check_formats <span class="ot">&lt;-</span> <span class="cf">function</span>(formats) {</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.list</span>(formats) <span class="sc">||</span> <span class="fu">length</span>(formats) <span class="sc">==</span> <span class="dv">0</span>L) {</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">stop</span>(<span class="st">"'formats' must be a non-empty named list."</span>)</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>  format_names <span class="ot">&lt;-</span> <span class="fu">names</span>(formats)</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">is.null</span>(format_names) <span class="sc">||</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>      <span class="fu">anyNA</span>(format_names) <span class="sc">||</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>      <span class="fu">any</span>(<span class="sc">!</span><span class="fu">nzchar</span>(format_names)) <span class="sc">||</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>      <span class="fu">anyDuplicated</span>(format_names)) {</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">stop</span>(<span class="st">"'formats' must have unique, non-empty format names."</span>)</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> (fmt <span class="cf">in</span> format_names) {</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>    x <span class="ot">&lt;-</span> formats[[fmt]]</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.character</span>(x) <span class="sc">||</span> <span class="fu">length</span>(x) <span class="sc">==</span> <span class="dv">0</span>L) {</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>      <span class="fu">stop</span>(<span class="st">"Format '"</span>, fmt, <span class="st">"' must be a non-empty character vector."</span>)</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>    codes <span class="ot">&lt;-</span> <span class="fu">names</span>(x)</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="fu">is.null</span>(codes) <span class="sc">||</span></span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>        <span class="fu">anyNA</span>(codes) <span class="sc">||</span></span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>        <span class="fu">any</span>(<span class="sc">!</span><span class="fu">nzchar</span>(codes)) <span class="sc">||</span></span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>        <span class="fu">anyDuplicated</span>(codes)) {</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>      <span class="fu">stop</span>(<span class="st">"Format '"</span>, fmt,</span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>           <span class="st">"' must have unique, non-empty code names."</span>)</span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="fu">anyNA</span>(<span class="fu">unname</span>(x))) {</span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>      <span class="fu">stop</span>(<span class="st">"Format '"</span>, fmt, <span class="st">"' contains missing labels."</span>)</span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a>  <span class="fu">invisible</span>(formats)</span>
+<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>Validate the definitions once after creating or importing them:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">check_formats</span>(formats)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="internal-helper-to-add-value-labels" class="level1" data-number="5">
+<h1 data-number="5"><span class="header-section-number">5</span> 4. Internal helper to add value labels</h1>
+<p><code>add_format_label()</code> adds a label column; it does <strong>not</strong> overwrite the original code. Codes absent from the selected format are retained as character values. Missing values remain <code>NA</code>.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>add_format_label <span class="ot">&lt;-</span> <span class="cf">function</span>(tab, var, <span class="at">fmt =</span> <span class="cn">NULL</span>, formats,</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>                              <span class="at">suffix =</span> <span class="st">"_label"</span>) {</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="sc">!</span>var <span class="sc">%in%</span> <span class="fu">names</span>(tab)) {</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">stop</span>(<span class="st">"Variable not found in table: "</span>, var)</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">is.null</span>(fmt)) {</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">return</span>(<span class="fu">copy</span>(tab))</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">check_formats</span>(formats)</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">length</span>(fmt) <span class="sc">!=</span> <span class="dv">1</span>L <span class="sc">||</span> <span class="fu">is.na</span>(fmt) <span class="sc">||</span> <span class="sc">!</span>fmt <span class="sc">%in%</span> <span class="fu">names</span>(formats)) {</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">stop</span>(<span class="st">"Format not found: "</span>, fmt)</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>  code <span class="ot">&lt;-</span> <span class="fu">as.character</span>(tab[[var]])</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>  map <span class="ot">&lt;-</span> formats[[fmt]]</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>  idx <span class="ot">&lt;-</span> <span class="fu">match</span>(code, <span class="fu">names</span>(map))</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>  label <span class="ot">&lt;-</span> code</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>  matched <span class="ot">&lt;-</span> <span class="sc">!</span><span class="fu">is.na</span>(idx)</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>  label[matched] <span class="ot">&lt;-</span> <span class="fu">unname</span>(map[idx[matched]])</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>  label[<span class="fu">is.na</span>(code)] <span class="ot">&lt;-</span> <span class="cn">NA_character_</span></span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>  out <span class="ot">&lt;-</span> <span class="fu">copy</span>(tab)</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>  <span class="fu">set</span>(out, <span class="at">j =</span> <span class="fu">paste0</span>(var, suffix), <span class="at">value =</span> label)</span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>  out[]</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>Example:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>sex_tab <span class="ot">&lt;-</span> DT[, .N, by <span class="ot">=</span> sex]</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="fu">add_format_label</span>(sex_tab, <span class="st">"sex"</span>, <span class="st">"SEXFMTFR"</span>, formats)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>     sex     N sex_label
+   &lt;num&gt; &lt;int&gt;    &lt;char&gt;
+1:     1   455    Hommes
+2:     2   496    Femmes
+3:    NA    27      &lt;NA&gt;
+4:    -1    22        -1</code></pre>
+</div>
+</div>
+</section>
+<section id="frequency-table-freq" class="level1" data-number="6">
+<h1 data-number="6"><span class="header-section-number">6</span> 5. Frequency table: <code>freq()</code></h1>
+<p><code>freq()</code> returns absolute frequencies and percentages. By default, missing values are retained as an <code>NA</code> category and included in the percentage denominator.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>freq <span class="ot">&lt;-</span> <span class="cf">function</span>(DT, var, <span class="at">fmt =</span> <span class="cn">NULL</span>, formats,</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>                 <span class="at">include_na =</span> <span class="cn">TRUE</span>, <span class="at">digits =</span> <span class="dv">1</span>) {</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  v <span class="ot">&lt;-</span> <span class="fu">deparse</span>(<span class="fu">substitute</span>(var))</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="sc">!</span>v <span class="sc">%in%</span> <span class="fu">names</span>(DT)) {</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">stop</span>(<span class="st">"Variable not found: "</span>, v)</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.logical</span>(include_na) <span class="sc">||</span> <span class="fu">length</span>(include_na) <span class="sc">!=</span> <span class="dv">1</span>L <span class="sc">||</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>      <span class="fu">is.na</span>(include_na)) {</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">stop</span>(<span class="st">"'include_na' must be TRUE or FALSE."</span>)</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>  tab <span class="ot">&lt;-</span> DT[, .N, by <span class="ot">=</span> v]</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="sc">!</span>include_na) {</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>    tab <span class="ot">&lt;-</span> tab[<span class="sc">!</span><span class="fu">is.na</span>(<span class="fu">get</span>(v))]</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>  tab[, pct <span class="sc">:</span><span class="er">=</span> <span class="cf">if</span> (<span class="fu">sum</span>(N) <span class="sc">&gt;</span> <span class="dv">0</span>) <span class="fu">round</span>(<span class="dv">100</span> <span class="sc">*</span> N <span class="sc">/</span> <span class="fu">sum</span>(N), digits) <span class="cf">else</span> <span class="cn">NA_real_</span>]</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">add_format_label</span>(tab, v, fmt, formats)</span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>Examples:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">freq</span>(DT, sex, <span class="at">fmt =</span> <span class="st">"SEXFMTFR"</span>, <span class="at">formats =</span> formats)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>     sex     N   pct sex_label
+   &lt;num&gt; &lt;int&gt; &lt;num&gt;    &lt;char&gt;
+1:     1   455  45.5    Hommes
+2:     2   496  49.6    Femmes
+3:    NA    27   2.7      &lt;NA&gt;
+4:    -1    22   2.2        -1</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">freq</span>(DT, education, <span class="at">fmt =</span> <span class="st">"EDUFMTFR"</span>, <span class="at">formats =</span> formats)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>   education     N   pct education_label
+       &lt;num&gt; &lt;int&gt; &lt;num&gt;          &lt;char&gt;
+1:         9    26   2.6               9
+2:         2   442  44.2   Secondaire II
+3:         1   159  15.9     Obligatoire
+4:         3   359  35.9       Tertiaire
+5:        NA    14   1.4            &lt;NA&gt;</code></pre>
+</div>
+</div>
+<p>Expected interpretation:</p>
+<ul>
+<li><code>1</code> is labelled <code>Hommes</code>.</li>
+<li><code>2</code> is labelled <code>Femmes</code>.</li>
+<li><code>-1</code> stays <code>-1</code>, because it is not in the format.</li>
+<li>Missing values remain <code>NA</code>; they are not silently converted into a code.</li>
+</ul>
+<p>To exclude missing values from the table and denominator:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="fu">freq</span>(DT, sex, <span class="at">fmt =</span> <span class="st">"SEXFMTFR"</span>,</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>     <span class="at">formats =</span> formats, <span class="at">include_na =</span> <span class="cn">FALSE</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>     sex     N   pct sex_label
+   &lt;num&gt; &lt;int&gt; &lt;num&gt;    &lt;char&gt;
+1:     1   455  46.8    Hommes
+2:     2   496  51.0    Femmes
+3:    -1    22   2.3        -1</code></pre>
+</div>
+</div>
+</section>
+<section id="cross-tabulation-cross_freq" class="level1" data-number="7">
+<h1 data-number="7"><span class="header-section-number">7</span> 6. Cross-tabulation: <code>cross_freq()</code></h1>
+<p><code>cross_freq()</code> returns a <strong>long</strong> table: one row per combination of the two variables. <code>percent</code> controls the denominator:</p>
+<ul>
+<li><code>"total"</code>: percentage of all records represented in the table;</li>
+<li><code>"row"</code>: percentage within each row category;</li>
+<li><code>"column"</code>: percentage within each column category.</li>
+</ul>
+<p>When <code>include_na = TRUE</code>, missing values are represented by the explicit label <code>"Missing"</code> in the cross-tabulation. Unmapped non-missing codes retain their original values.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>cross_freq <span class="ot">&lt;-</span> <span class="cf">function</span>(DT, var1, var2,</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>                       <span class="at">fmt1 =</span> <span class="cn">NULL</span>, <span class="at">fmt2 =</span> <span class="cn">NULL</span>,</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>                       <span class="at">percent =</span> <span class="fu">c</span>(<span class="st">"row"</span>, <span class="st">"column"</span>, <span class="st">"total"</span>),</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>                       formats,</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>                       <span class="at">digits =</span> <span class="dv">1</span>,</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>                       <span class="at">include_na =</span> <span class="cn">TRUE</span>) {</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>  v1 <span class="ot">&lt;-</span> <span class="fu">deparse</span>(<span class="fu">substitute</span>(var1))</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>  v2 <span class="ot">&lt;-</span> <span class="fu">deparse</span>(<span class="fu">substitute</span>(var2))</span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>  percent <span class="ot">&lt;-</span> <span class="fu">match.arg</span>(percent)</span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="sc">!</span><span class="fu">all</span>(<span class="fu">c</span>(v1, v2) <span class="sc">%in%</span> <span class="fu">names</span>(DT))) {</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">stop</span>(<span class="st">"One or both variables were not found in DT."</span>)</span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">identical</span>(v1, v2)) {</span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">stop</span>(<span class="st">"'var1' and 'var2' must be different variables."</span>)</span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a>  tab <span class="ot">&lt;-</span> DT[, .N, by <span class="ot">=</span> <span class="fu">c</span>(v1, v2)]</span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="sc">!</span>include_na) {</span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a>    tab <span class="ot">&lt;-</span> tab[<span class="sc">!</span><span class="fu">is.na</span>(<span class="fu">get</span>(v1)) <span class="sc">&amp;</span> <span class="sc">!</span><span class="fu">is.na</span>(<span class="fu">get</span>(v2))]</span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-25"><a href="#cb17-25" aria-hidden="true" tabindex="-1"></a>  apply_cross_label <span class="ot">&lt;-</span> <span class="cf">function</span>(x, fmt) {</span>
+<span id="cb17-26"><a href="#cb17-26" aria-hidden="true" tabindex="-1"></a>    code <span class="ot">&lt;-</span> <span class="fu">as.character</span>(x)</span>
+<span id="cb17-27"><a href="#cb17-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-28"><a href="#cb17-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="fu">is.null</span>(fmt)) {</span>
+<span id="cb17-29"><a href="#cb17-29" aria-hidden="true" tabindex="-1"></a>      label <span class="ot">&lt;-</span> code</span>
+<span id="cb17-30"><a href="#cb17-30" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> {</span>
+<span id="cb17-31"><a href="#cb17-31" aria-hidden="true" tabindex="-1"></a>      <span class="fu">check_formats</span>(formats)</span>
+<span id="cb17-32"><a href="#cb17-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-33"><a href="#cb17-33" aria-hidden="true" tabindex="-1"></a>      <span class="cf">if</span> (<span class="fu">length</span>(fmt) <span class="sc">!=</span> <span class="dv">1</span>L <span class="sc">||</span> <span class="fu">is.na</span>(fmt) <span class="sc">||</span> <span class="sc">!</span>fmt <span class="sc">%in%</span> <span class="fu">names</span>(formats)) {</span>
+<span id="cb17-34"><a href="#cb17-34" aria-hidden="true" tabindex="-1"></a>        <span class="fu">stop</span>(<span class="st">"Format not found: "</span>, fmt)</span>
+<span id="cb17-35"><a href="#cb17-35" aria-hidden="true" tabindex="-1"></a>      }</span>
+<span id="cb17-36"><a href="#cb17-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-37"><a href="#cb17-37" aria-hidden="true" tabindex="-1"></a>      map <span class="ot">&lt;-</span> formats[[fmt]]</span>
+<span id="cb17-38"><a href="#cb17-38" aria-hidden="true" tabindex="-1"></a>      idx <span class="ot">&lt;-</span> <span class="fu">match</span>(code, <span class="fu">names</span>(map))</span>
+<span id="cb17-39"><a href="#cb17-39" aria-hidden="true" tabindex="-1"></a>      label <span class="ot">&lt;-</span> code</span>
+<span id="cb17-40"><a href="#cb17-40" aria-hidden="true" tabindex="-1"></a>      matched <span class="ot">&lt;-</span> <span class="sc">!</span><span class="fu">is.na</span>(idx)</span>
+<span id="cb17-41"><a href="#cb17-41" aria-hidden="true" tabindex="-1"></a>      label[matched] <span class="ot">&lt;-</span> <span class="fu">unname</span>(map[idx[matched]])</span>
+<span id="cb17-42"><a href="#cb17-42" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb17-43"><a href="#cb17-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-44"><a href="#cb17-44" aria-hidden="true" tabindex="-1"></a>    label[<span class="fu">is.na</span>(code)] <span class="ot">&lt;-</span> <span class="st">"Missing"</span></span>
+<span id="cb17-45"><a href="#cb17-45" aria-hidden="true" tabindex="-1"></a>    label</span>
+<span id="cb17-46"><a href="#cb17-46" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb17-47"><a href="#cb17-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-48"><a href="#cb17-48" aria-hidden="true" tabindex="-1"></a>  <span class="fu">set</span>(tab, <span class="at">j =</span> v1, <span class="at">value =</span> <span class="fu">apply_cross_label</span>(tab[[v1]], fmt1))</span>
+<span id="cb17-49"><a href="#cb17-49" aria-hidden="true" tabindex="-1"></a>  <span class="fu">set</span>(tab, <span class="at">j =</span> v2, <span class="at">value =</span> <span class="fu">apply_cross_label</span>(tab[[v2]], fmt2))</span>
+<span id="cb17-50"><a href="#cb17-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-51"><a href="#cb17-51" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Combine source codes that map to the same label.</span></span>
+<span id="cb17-52"><a href="#cb17-52" aria-hidden="true" tabindex="-1"></a>  tab <span class="ot">&lt;-</span> tab[, .(<span class="at">N =</span> <span class="fu">sum</span>(N)), by <span class="ot">=</span> <span class="fu">c</span>(v1, v2)]</span>
+<span id="cb17-53"><a href="#cb17-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-54"><a href="#cb17-54" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (percent <span class="sc">==</span> <span class="st">"total"</span>) {</span>
+<span id="cb17-55"><a href="#cb17-55" aria-hidden="true" tabindex="-1"></a>    tab[, pct <span class="sc">:</span><span class="er">=</span> <span class="fu">round</span>(<span class="dv">100</span> <span class="sc">*</span> N <span class="sc">/</span> <span class="fu">sum</span>(N), digits)]</span>
+<span id="cb17-56"><a href="#cb17-56" aria-hidden="true" tabindex="-1"></a>  } <span class="cf">else</span> <span class="cf">if</span> (percent <span class="sc">==</span> <span class="st">"row"</span>) {</span>
+<span id="cb17-57"><a href="#cb17-57" aria-hidden="true" tabindex="-1"></a>    tab[, pct <span class="sc">:</span><span class="er">=</span> <span class="fu">round</span>(<span class="dv">100</span> <span class="sc">*</span> N <span class="sc">/</span> <span class="fu">sum</span>(N), digits), by <span class="ot">=</span> v1]</span>
+<span id="cb17-58"><a href="#cb17-58" aria-hidden="true" tabindex="-1"></a>  } <span class="cf">else</span> {</span>
+<span id="cb17-59"><a href="#cb17-59" aria-hidden="true" tabindex="-1"></a>    tab[, pct <span class="sc">:</span><span class="er">=</span> <span class="fu">round</span>(<span class="dv">100</span> <span class="sc">*</span> N <span class="sc">/</span> <span class="fu">sum</span>(N), digits), by <span class="ot">=</span> v2]</span>
+<span id="cb17-60"><a href="#cb17-60" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb17-61"><a href="#cb17-61" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-62"><a href="#cb17-62" aria-hidden="true" tabindex="-1"></a>  <span class="fu">setcolorder</span>(tab, <span class="fu">c</span>(v1, v2, <span class="st">"N"</span>, <span class="st">"pct"</span>))</span>
+<span id="cb17-63"><a href="#cb17-63" aria-hidden="true" tabindex="-1"></a>  tab[]</span>
+<span id="cb17-64"><a href="#cb17-64" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>Example:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cross_freq</span>(</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  DT,</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>  sex,</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>  education,</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">fmt1 =</span> <span class="st">"SEXFMTFR"</span>,</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">fmt2 =</span> <span class="st">"EDUFMTFR"</span>,</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">percent =</span> <span class="st">"row"</span>,</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">formats =</span> formats</span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>        sex     education     N   pct
+     &lt;char&gt;        &lt;char&gt; &lt;int&gt; &lt;num&gt;
+ 1:  Hommes             9    10   2.2
+ 2:  Hommes Secondaire II   208  45.7
+ 3:  Hommes   Obligatoire    66  14.5
+ 4:  Femmes     Tertiaire   181  36.5
+ 5:  Femmes   Obligatoire    84  16.9
+ 6: Missing Secondaire II    14  51.9
+ 7:  Femmes Secondaire II   210  42.3
+ 8:  Hommes     Tertiaire   166  36.5
+ 9:  Femmes             9    14   2.8
+10:      -1       Missing     1   4.5
+11: Missing   Obligatoire     5  18.5
+12: Missing       Missing     1   3.7
+13:      -1 Secondaire II    10  45.5
+14:  Hommes       Missing     5   1.1
+15: Missing     Tertiaire     6  22.2
+16:  Femmes       Missing     7   1.4
+17:      -1             9     1   4.5
+18:      -1     Tertiaire     6  27.3
+19:      -1   Obligatoire     4  18.2
+20: Missing             9     1   3.7
+        sex     education     N   pct</code></pre>
+</div>
+</div>
+</section>
+<section id="wide-cross-tabulation-with-margins-cross_freq_wide" class="level1" data-number="8">
+<h1 data-number="8"><span class="header-section-number">8</span> 7. Wide cross-tabulation with margins: <code>cross_freq_wide()</code></h1>
+<p>This function returns one row per category of <code>var1</code> and one column per category of <code>var2</code>. With <code>margins = TRUE</code>, it adds row totals, column totals and the grand total.</p>
+<p>For percentage tables, the margins are calculated from the underlying counts, not by adding already-rounded percentages:</p>
+<ul>
+<li><code>"row"</code>: each row sums to 100; the bottom row contains the column shares of the grand total;</li>
+<li><code>"column"</code>: each column sums to 100; the rightmost column contains the row shares of the grand total;</li>
+<li><code>"total"</code>: cells and both margins are shares of the grand total.</li>
+</ul>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>cross_freq_wide <span class="ot">&lt;-</span> <span class="cf">function</span>(DT, var1, var2,</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>                            <span class="at">fmt1 =</span> <span class="cn">NULL</span>, <span class="at">fmt2 =</span> <span class="cn">NULL</span>,</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>                            formats,</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>                            <span class="at">value =</span> <span class="fu">c</span>(<span class="st">"N"</span>, <span class="st">"pct"</span>),</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>                            <span class="at">percent =</span> <span class="fu">c</span>(<span class="st">"row"</span>, <span class="st">"column"</span>, <span class="st">"total"</span>),</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>                            <span class="at">digits =</span> <span class="dv">1</span>,</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>                            <span class="at">include_na =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>                            <span class="at">margins =</span> <span class="cn">TRUE</span>) {</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>  v1 <span class="ot">&lt;-</span> <span class="fu">deparse</span>(<span class="fu">substitute</span>(var1))</span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>  v2 <span class="ot">&lt;-</span> <span class="fu">deparse</span>(<span class="fu">substitute</span>(var2))</span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a>  value <span class="ot">&lt;-</span> <span class="fu">match.arg</span>(value)</span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a>  percent <span class="ot">&lt;-</span> <span class="fu">match.arg</span>(percent)</span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="sc">!</span><span class="fu">all</span>(<span class="fu">c</span>(v1, v2) <span class="sc">%in%</span> <span class="fu">names</span>(DT))) {</span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">stop</span>(<span class="st">"One or both variables were not found in DT."</span>)</span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-19"><a href="#cb20-19" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">identical</span>(v1, v2)) {</span>
+<span id="cb20-20"><a href="#cb20-20" aria-hidden="true" tabindex="-1"></a>    <span class="fu">stop</span>(<span class="st">"'var1' and 'var2' must be different variables."</span>)</span>
+<span id="cb20-21"><a href="#cb20-21" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb20-22"><a href="#cb20-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-23"><a href="#cb20-23" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.logical</span>(include_na) <span class="sc">||</span> <span class="fu">length</span>(include_na) <span class="sc">!=</span> <span class="dv">1</span>L <span class="sc">||</span></span>
+<span id="cb20-24"><a href="#cb20-24" aria-hidden="true" tabindex="-1"></a>      <span class="fu">is.na</span>(include_na) <span class="sc">||</span></span>
+<span id="cb20-25"><a href="#cb20-25" aria-hidden="true" tabindex="-1"></a>      <span class="sc">!</span><span class="fu">is.logical</span>(margins) <span class="sc">||</span> <span class="fu">length</span>(margins) <span class="sc">!=</span> <span class="dv">1</span>L <span class="sc">||</span></span>
+<span id="cb20-26"><a href="#cb20-26" aria-hidden="true" tabindex="-1"></a>      <span class="fu">is.na</span>(margins)) {</span>
+<span id="cb20-27"><a href="#cb20-27" aria-hidden="true" tabindex="-1"></a>    <span class="fu">stop</span>(<span class="st">"'include_na' and 'margins' must be TRUE or FALSE."</span>)</span>
+<span id="cb20-28"><a href="#cb20-28" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb20-29"><a href="#cb20-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-30"><a href="#cb20-30" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Start from absolute frequencies.</span></span>
+<span id="cb20-31"><a href="#cb20-31" aria-hidden="true" tabindex="-1"></a>  tab <span class="ot">&lt;-</span> DT[, .N, by <span class="ot">=</span> <span class="fu">c</span>(v1, v2)]</span>
+<span id="cb20-32"><a href="#cb20-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-33"><a href="#cb20-33" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="sc">!</span>include_na) {</span>
+<span id="cb20-34"><a href="#cb20-34" aria-hidden="true" tabindex="-1"></a>    tab <span class="ot">&lt;-</span> tab[<span class="sc">!</span><span class="fu">is.na</span>(<span class="fu">get</span>(v1)) <span class="sc">&amp;</span> <span class="sc">!</span><span class="fu">is.na</span>(<span class="fu">get</span>(v2))]</span>
+<span id="cb20-35"><a href="#cb20-35" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb20-36"><a href="#cb20-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-37"><a href="#cb20-37" aria-hidden="true" tabindex="-1"></a>  apply_cross_label <span class="ot">&lt;-</span> <span class="cf">function</span>(x, fmt) {</span>
+<span id="cb20-38"><a href="#cb20-38" aria-hidden="true" tabindex="-1"></a>    code <span class="ot">&lt;-</span> <span class="fu">as.character</span>(x)</span>
+<span id="cb20-39"><a href="#cb20-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-40"><a href="#cb20-40" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="fu">is.null</span>(fmt)) {</span>
+<span id="cb20-41"><a href="#cb20-41" aria-hidden="true" tabindex="-1"></a>      label <span class="ot">&lt;-</span> code</span>
+<span id="cb20-42"><a href="#cb20-42" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> {</span>
+<span id="cb20-43"><a href="#cb20-43" aria-hidden="true" tabindex="-1"></a>      <span class="fu">check_formats</span>(formats)</span>
+<span id="cb20-44"><a href="#cb20-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-45"><a href="#cb20-45" aria-hidden="true" tabindex="-1"></a>      <span class="cf">if</span> (<span class="fu">length</span>(fmt) <span class="sc">!=</span> <span class="dv">1</span>L <span class="sc">||</span> <span class="fu">is.na</span>(fmt) <span class="sc">||</span> <span class="sc">!</span>fmt <span class="sc">%in%</span> <span class="fu">names</span>(formats)) {</span>
+<span id="cb20-46"><a href="#cb20-46" aria-hidden="true" tabindex="-1"></a>        <span class="fu">stop</span>(<span class="st">"Format not found: "</span>, fmt)</span>
+<span id="cb20-47"><a href="#cb20-47" aria-hidden="true" tabindex="-1"></a>      }</span>
+<span id="cb20-48"><a href="#cb20-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-49"><a href="#cb20-49" aria-hidden="true" tabindex="-1"></a>      map <span class="ot">&lt;-</span> formats[[fmt]]</span>
+<span id="cb20-50"><a href="#cb20-50" aria-hidden="true" tabindex="-1"></a>      idx <span class="ot">&lt;-</span> <span class="fu">match</span>(code, <span class="fu">names</span>(map))</span>
+<span id="cb20-51"><a href="#cb20-51" aria-hidden="true" tabindex="-1"></a>      label <span class="ot">&lt;-</span> code</span>
+<span id="cb20-52"><a href="#cb20-52" aria-hidden="true" tabindex="-1"></a>      matched <span class="ot">&lt;-</span> <span class="sc">!</span><span class="fu">is.na</span>(idx)</span>
+<span id="cb20-53"><a href="#cb20-53" aria-hidden="true" tabindex="-1"></a>      label[matched] <span class="ot">&lt;-</span> <span class="fu">unname</span>(map[idx[matched]])</span>
+<span id="cb20-54"><a href="#cb20-54" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb20-55"><a href="#cb20-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-56"><a href="#cb20-56" aria-hidden="true" tabindex="-1"></a>    label[<span class="fu">is.na</span>(code)] <span class="ot">&lt;-</span> <span class="st">"Missing"</span></span>
+<span id="cb20-57"><a href="#cb20-57" aria-hidden="true" tabindex="-1"></a>    label</span>
+<span id="cb20-58"><a href="#cb20-58" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb20-59"><a href="#cb20-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-60"><a href="#cb20-60" aria-hidden="true" tabindex="-1"></a>  <span class="fu">set</span>(tab, <span class="at">j =</span> v1, <span class="at">value =</span> <span class="fu">apply_cross_label</span>(tab[[v1]], fmt1))</span>
+<span id="cb20-61"><a href="#cb20-61" aria-hidden="true" tabindex="-1"></a>  <span class="fu">set</span>(tab, <span class="at">j =</span> v2, <span class="at">value =</span> <span class="fu">apply_cross_label</span>(tab[[v2]], fmt2))</span>
+<span id="cb20-62"><a href="#cb20-62" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-63"><a href="#cb20-63" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Aggregate codes that share the same displayed label.</span></span>
+<span id="cb20-64"><a href="#cb20-64" aria-hidden="true" tabindex="-1"></a>  tab <span class="ot">&lt;-</span> tab[, .(<span class="at">N =</span> <span class="fu">sum</span>(N)), by <span class="ot">=</span> <span class="fu">c</span>(v1, v2)]</span>
+<span id="cb20-65"><a href="#cb20-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-66"><a href="#cb20-66" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">nrow</span>(tab) <span class="sc">==</span> <span class="dv">0</span>L) {</span>
+<span id="cb20-67"><a href="#cb20-67" aria-hidden="true" tabindex="-1"></a>    <span class="fu">stop</span>(<span class="st">"No observations remain after applying the missing-value rule."</span>)</span>
+<span id="cb20-68"><a href="#cb20-68" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb20-69"><a href="#cb20-69" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-70"><a href="#cb20-70" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">any</span>(<span class="fu">as.character</span>(tab[[v1]]) <span class="sc">==</span> <span class="st">"Total"</span>) <span class="sc">||</span></span>
+<span id="cb20-71"><a href="#cb20-71" aria-hidden="true" tabindex="-1"></a>      <span class="fu">any</span>(<span class="fu">as.character</span>(tab[[v2]]) <span class="sc">==</span> <span class="st">"Total"</span>)) {</span>
+<span id="cb20-72"><a href="#cb20-72" aria-hidden="true" tabindex="-1"></a>    <span class="fu">stop</span>(<span class="st">"'Total' is reserved for marginal totals; use another label."</span>)</span>
+<span id="cb20-73"><a href="#cb20-73" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb20-74"><a href="#cb20-74" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-75"><a href="#cb20-75" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Calculate all margins from counts.</span></span>
+<span id="cb20-76"><a href="#cb20-76" aria-hidden="true" tabindex="-1"></a>  row_totals <span class="ot">&lt;-</span> tab[, .(<span class="at">margin =</span> <span class="fu">sum</span>(N)), by <span class="ot">=</span> v1]</span>
+<span id="cb20-77"><a href="#cb20-77" aria-hidden="true" tabindex="-1"></a>  col_totals <span class="ot">&lt;-</span> tab[, .(<span class="at">margin =</span> <span class="fu">sum</span>(N)), by <span class="ot">=</span> v2]</span>
+<span id="cb20-78"><a href="#cb20-78" aria-hidden="true" tabindex="-1"></a>  grand_total <span class="ot">&lt;-</span> <span class="fu">sum</span>(tab<span class="sc">$</span>N)</span>
+<span id="cb20-79"><a href="#cb20-79" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-80"><a href="#cb20-80" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Calculate cell values before casting.</span></span>
+<span id="cb20-81"><a href="#cb20-81" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (value <span class="sc">==</span> <span class="st">"N"</span>) {</span>
+<span id="cb20-82"><a href="#cb20-82" aria-hidden="true" tabindex="-1"></a>    tab[, result <span class="sc">:</span><span class="er">=</span> N]</span>
+<span id="cb20-83"><a href="#cb20-83" aria-hidden="true" tabindex="-1"></a>  } <span class="cf">else</span> <span class="cf">if</span> (percent <span class="sc">==</span> <span class="st">"row"</span>) {</span>
+<span id="cb20-84"><a href="#cb20-84" aria-hidden="true" tabindex="-1"></a>    tab[, result <span class="sc">:</span><span class="er">=</span> <span class="dv">100</span> <span class="sc">*</span> N <span class="sc">/</span> <span class="fu">sum</span>(N), by <span class="ot">=</span> v1]</span>
+<span id="cb20-85"><a href="#cb20-85" aria-hidden="true" tabindex="-1"></a>  } <span class="cf">else</span> <span class="cf">if</span> (percent <span class="sc">==</span> <span class="st">"column"</span>) {</span>
+<span id="cb20-86"><a href="#cb20-86" aria-hidden="true" tabindex="-1"></a>    tab[, result <span class="sc">:</span><span class="er">=</span> <span class="dv">100</span> <span class="sc">*</span> N <span class="sc">/</span> <span class="fu">sum</span>(N), by <span class="ot">=</span> v2]</span>
+<span id="cb20-87"><a href="#cb20-87" aria-hidden="true" tabindex="-1"></a>  } <span class="cf">else</span> {</span>
+<span id="cb20-88"><a href="#cb20-88" aria-hidden="true" tabindex="-1"></a>    tab[, result <span class="sc">:</span><span class="er">=</span> <span class="dv">100</span> <span class="sc">*</span> N <span class="sc">/</span> grand_total]</span>
+<span id="cb20-89"><a href="#cb20-89" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb20-90"><a href="#cb20-90" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-91"><a href="#cb20-91" aria-hidden="true" tabindex="-1"></a>  tab[, result <span class="sc">:</span><span class="er">=</span> <span class="cf">if</span> (value <span class="sc">==</span> <span class="st">"pct"</span>) <span class="fu">round</span>(result, digits) <span class="cf">else</span> result]</span>
+<span id="cb20-92"><a href="#cb20-92" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-93"><a href="#cb20-93" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Cast to wide form.</span></span>
+<span id="cb20-94"><a href="#cb20-94" aria-hidden="true" tabindex="-1"></a>  out <span class="ot">&lt;-</span> <span class="fu">dcast</span>(</span>
+<span id="cb20-95"><a href="#cb20-95" aria-hidden="true" tabindex="-1"></a>    tab,</span>
+<span id="cb20-96"><a href="#cb20-96" aria-hidden="true" tabindex="-1"></a>    stats<span class="sc">::</span><span class="fu">reformulate</span>(v2, <span class="at">response =</span> v1),</span>
+<span id="cb20-97"><a href="#cb20-97" aria-hidden="true" tabindex="-1"></a>    <span class="at">value.var =</span> <span class="st">"result"</span>,</span>
+<span id="cb20-98"><a href="#cb20-98" aria-hidden="true" tabindex="-1"></a>    <span class="at">fill =</span> <span class="dv">0</span></span>
+<span id="cb20-99"><a href="#cb20-99" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb20-100"><a href="#cb20-100" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-101"><a href="#cb20-101" aria-hidden="true" tabindex="-1"></a>  category_cols <span class="ot">&lt;-</span> <span class="fu">setdiff</span>(<span class="fu">names</span>(out), v1)</span>
+<span id="cb20-102"><a href="#cb20-102" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-103"><a href="#cb20-103" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (margins) {</span>
+<span id="cb20-104"><a href="#cb20-104" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Rightmost margin: row totals or row shares of the grand total.</span></span>
+<span id="cb20-105"><a href="#cb20-105" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (value <span class="sc">==</span> <span class="st">"N"</span>) {</span>
+<span id="cb20-106"><a href="#cb20-106" aria-hidden="true" tabindex="-1"></a>      out[, Total <span class="sc">:</span><span class="er">=</span> row_totals<span class="sc">$</span>margin[</span>
+<span id="cb20-107"><a href="#cb20-107" aria-hidden="true" tabindex="-1"></a>        <span class="fu">match</span>(<span class="fu">as.character</span>(<span class="fu">get</span>(v1)), <span class="fu">as.character</span>(row_totals[[v1]]))</span>
+<span id="cb20-108"><a href="#cb20-108" aria-hidden="true" tabindex="-1"></a>      ]]</span>
+<span id="cb20-109"><a href="#cb20-109" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span> (percent <span class="sc">==</span> <span class="st">"row"</span>) {</span>
+<span id="cb20-110"><a href="#cb20-110" aria-hidden="true" tabindex="-1"></a>      out[, Total <span class="sc">:</span><span class="er">=</span> <span class="dv">100</span>]</span>
+<span id="cb20-111"><a href="#cb20-111" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> {</span>
+<span id="cb20-112"><a href="#cb20-112" aria-hidden="true" tabindex="-1"></a>      out[, Total <span class="sc">:</span><span class="er">=</span> <span class="fu">round</span>(</span>
+<span id="cb20-113"><a href="#cb20-113" aria-hidden="true" tabindex="-1"></a>        row_totals<span class="sc">$</span>margin[</span>
+<span id="cb20-114"><a href="#cb20-114" aria-hidden="true" tabindex="-1"></a>          <span class="fu">match</span>(<span class="fu">as.character</span>(<span class="fu">get</span>(v1)), <span class="fu">as.character</span>(row_totals[[v1]]))</span>
+<span id="cb20-115"><a href="#cb20-115" aria-hidden="true" tabindex="-1"></a>        ] <span class="sc">/</span> grand_total <span class="sc">*</span> <span class="dv">100</span>,</span>
+<span id="cb20-116"><a href="#cb20-116" aria-hidden="true" tabindex="-1"></a>        digits</span>
+<span id="cb20-117"><a href="#cb20-117" aria-hidden="true" tabindex="-1"></a>      )]</span>
+<span id="cb20-118"><a href="#cb20-118" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb20-119"><a href="#cb20-119" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-120"><a href="#cb20-120" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Bottom margin: column totals or column shares of the grand total.</span></span>
+<span id="cb20-121"><a href="#cb20-121" aria-hidden="true" tabindex="-1"></a>    total_row <span class="ot">&lt;-</span> out[<span class="dv">1</span>L]</span>
+<span id="cb20-122"><a href="#cb20-122" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-123"><a href="#cb20-123" aria-hidden="true" tabindex="-1"></a>    <span class="fu">set</span>(total_row, <span class="at">j =</span> v1, <span class="at">value =</span> <span class="st">"Total"</span>)</span>
+<span id="cb20-124"><a href="#cb20-124" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-125"><a href="#cb20-125" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> (col <span class="cf">in</span> category_cols) {</span>
+<span id="cb20-126"><a href="#cb20-126" aria-hidden="true" tabindex="-1"></a>      col_count <span class="ot">&lt;-</span> col_totals<span class="sc">$</span>margin[</span>
+<span id="cb20-127"><a href="#cb20-127" aria-hidden="true" tabindex="-1"></a>        <span class="fu">match</span>(col, <span class="fu">as.character</span>(col_totals[[v2]]))</span>
+<span id="cb20-128"><a href="#cb20-128" aria-hidden="true" tabindex="-1"></a>      ]</span>
+<span id="cb20-129"><a href="#cb20-129" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-130"><a href="#cb20-130" aria-hidden="true" tabindex="-1"></a>      <span class="cf">if</span> (value <span class="sc">==</span> <span class="st">"N"</span>) {</span>
+<span id="cb20-131"><a href="#cb20-131" aria-hidden="true" tabindex="-1"></a>        margin_value <span class="ot">&lt;-</span> col_count</span>
+<span id="cb20-132"><a href="#cb20-132" aria-hidden="true" tabindex="-1"></a>      } <span class="cf">else</span> <span class="cf">if</span> (percent <span class="sc">==</span> <span class="st">"column"</span>) {</span>
+<span id="cb20-133"><a href="#cb20-133" aria-hidden="true" tabindex="-1"></a>        margin_value <span class="ot">&lt;-</span> <span class="dv">100</span></span>
+<span id="cb20-134"><a href="#cb20-134" aria-hidden="true" tabindex="-1"></a>      } <span class="cf">else</span> {</span>
+<span id="cb20-135"><a href="#cb20-135" aria-hidden="true" tabindex="-1"></a>        margin_value <span class="ot">&lt;-</span> <span class="fu">round</span>(col_count <span class="sc">/</span> grand_total <span class="sc">*</span> <span class="dv">100</span>, digits)</span>
+<span id="cb20-136"><a href="#cb20-136" aria-hidden="true" tabindex="-1"></a>      }</span>
+<span id="cb20-137"><a href="#cb20-137" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-138"><a href="#cb20-138" aria-hidden="true" tabindex="-1"></a>      <span class="fu">set</span>(total_row, <span class="at">j =</span> col, <span class="at">value =</span> margin_value)</span>
+<span id="cb20-139"><a href="#cb20-139" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb20-140"><a href="#cb20-140" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-141"><a href="#cb20-141" aria-hidden="true" tabindex="-1"></a>    grand_value <span class="ot">&lt;-</span> <span class="cf">if</span> (value <span class="sc">==</span> <span class="st">"N"</span>) grand_total <span class="cf">else</span> <span class="dv">100</span></span>
+<span id="cb20-142"><a href="#cb20-142" aria-hidden="true" tabindex="-1"></a>    <span class="fu">set</span>(total_row, <span class="at">j =</span> <span class="st">"Total"</span>, <span class="at">value =</span> grand_value)</span>
+<span id="cb20-143"><a href="#cb20-143" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-144"><a href="#cb20-144" aria-hidden="true" tabindex="-1"></a>    out <span class="ot">&lt;-</span> <span class="fu">rbindlist</span>(<span class="fu">list</span>(out, total_row), <span class="at">use.names =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb20-145"><a href="#cb20-145" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb20-146"><a href="#cb20-146" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-147"><a href="#cb20-147" aria-hidden="true" tabindex="-1"></a>  <span class="fu">setcolorder</span>(out, <span class="fu">c</span>(v1, <span class="fu">setdiff</span>(<span class="fu">names</span>(out), v1)))</span>
+<span id="cb20-148"><a href="#cb20-148" aria-hidden="true" tabindex="-1"></a>  out[]</span>
+<span id="cb20-149"><a href="#cb20-149" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>Examples:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Column percentages: each education column sums to 100%.</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>tab_wide_column <span class="ot">&lt;-</span> <span class="fu">cross_freq_wide</span>(</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>  DT,</span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>  sex,</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>  education,</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">fmt1 =</span> <span class="st">"SEXFMTFR"</span>,</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">fmt2 =</span> <span class="st">"EDUFMTFR"</span>,</span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">formats =</span> formats,</span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">value =</span> <span class="st">"pct"</span>,</span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">percent =</span> <span class="st">"column"</span>,</span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">include_na =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">margins =</span> <span class="cn">TRUE</span></span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a>tab_wide_column</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>      sex     9 Obligatoire Secondaire II Tertiaire Total
+   &lt;char&gt; &lt;num&gt;       &lt;num&gt;         &lt;num&gt;     &lt;num&gt; &lt;num&gt;
+1:     -1     4         2.6           2.3       1.7   2.2
+2: Femmes    56        54.5          49.1      51.3  50.9
+3: Hommes    40        42.9          48.6      47.0  46.9
+4:  Total   100       100.0         100.0     100.0 100.0</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Row percentages: each sex row sums to 100%.</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>tab_wide_row <span class="ot">&lt;-</span> <span class="fu">cross_freq_wide</span>(</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>  DT,</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>  sex,</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>  education,</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">fmt1 =</span> <span class="st">"SEXFMTFR"</span>,</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">fmt2 =</span> <span class="st">"EDUFMTFR"</span>,</span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">formats =</span> formats,</span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">value =</span> <span class="st">"pct"</span>,</span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">percent =</span> <span class="st">"row"</span>,</span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">include_na =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">margins =</span> <span class="cn">TRUE</span></span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a>tab_wide_row</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>      sex     9 Obligatoire Secondaire II Tertiaire Total
+   &lt;char&gt; &lt;num&gt;       &lt;num&gt;         &lt;num&gt;     &lt;num&gt; &lt;num&gt;
+1:     -1   4.8        19.0          47.6      28.6   100
+2: Femmes   2.9        17.2          42.9      37.0   100
+3: Hommes   2.2        14.7          46.2      36.9   100
+4:  Total   2.6        16.0          44.6      36.8   100</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Absolute frequencies with margins.</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>tab_wide_n <span class="ot">&lt;-</span> <span class="fu">cross_freq_wide</span>(</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>  DT,</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>  sex,</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>  education,</span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">fmt1 =</span> <span class="st">"SEXFMTFR"</span>,</span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">fmt2 =</span> <span class="st">"EDUFMTFR"</span>,</span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">formats =</span> formats,</span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">value =</span> <span class="st">"N"</span>,</span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">include_na =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">margins =</span> <span class="cn">TRUE</span></span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a>tab_wide_n</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>      sex     9 Obligatoire Secondaire II Tertiaire Total
+   &lt;char&gt; &lt;int&gt;       &lt;int&gt;         &lt;int&gt;     &lt;int&gt; &lt;int&gt;
+1:     -1     1           4            10         6    21
+2: Femmes    14          84           210       181   489
+3: Hommes    10          66           208       166   450
+4:  Total    25         154           428       353   960</code></pre>
+</div>
+</div>
+</section>
+<section id="descriptive-statistics-by-group-summary_by" class="level1" data-number="9">
+<h1 data-number="9"><span class="header-section-number">9</span> 8. Descriptive statistics by group: <code>summary_by()</code></h1>
+<p>This example calculates the number of non-missing observations, mean, standard deviation, median, minimum and maximum. Groups in which all values are missing are retained, with descriptive statistics set to <code>NA</code>.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>summary_by <span class="ot">&lt;-</span> <span class="cf">function</span>(DT, value, by, <span class="at">fmt =</span> <span class="cn">NULL</span>,</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>                       formats, <span class="at">digits =</span> <span class="dv">2</span>) {</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>  v <span class="ot">&lt;-</span> <span class="fu">deparse</span>(<span class="fu">substitute</span>(value))</span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>  g <span class="ot">&lt;-</span> <span class="fu">deparse</span>(<span class="fu">substitute</span>(by))</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="sc">!</span><span class="fu">all</span>(<span class="fu">c</span>(v, g) <span class="sc">%in%</span> <span class="fu">names</span>(DT))) {</span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">stop</span>(<span class="st">"Value or grouping variable not found in DT."</span>)</span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>  tab <span class="ot">&lt;-</span> DT[, {</span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a>    x <span class="ot">&lt;-</span> <span class="fu">get</span>(v)</span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>    x_nonmiss <span class="ot">&lt;-</span> x[<span class="sc">!</span><span class="fu">is.na</span>(x)]</span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a>    .(</span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a>      <span class="at">N =</span> <span class="fu">length</span>(x_nonmiss),</span>
+<span id="cb27-16"><a href="#cb27-16" aria-hidden="true" tabindex="-1"></a>      <span class="at">Mean =</span> <span class="cf">if</span> (<span class="fu">length</span>(x_nonmiss)) <span class="fu">mean</span>(x_nonmiss) <span class="cf">else</span> <span class="cn">NA_real_</span>,</span>
+<span id="cb27-17"><a href="#cb27-17" aria-hidden="true" tabindex="-1"></a>      <span class="at">SD =</span> <span class="cf">if</span> (<span class="fu">length</span>(x_nonmiss) <span class="sc">&gt;</span> <span class="dv">1</span>L) <span class="fu">sd</span>(x_nonmiss) <span class="cf">else</span> <span class="cn">NA_real_</span>,</span>
+<span id="cb27-18"><a href="#cb27-18" aria-hidden="true" tabindex="-1"></a>      <span class="at">Median =</span> <span class="cf">if</span> (<span class="fu">length</span>(x_nonmiss)) <span class="fu">median</span>(x_nonmiss) <span class="cf">else</span> <span class="cn">NA_real_</span>,</span>
+<span id="cb27-19"><a href="#cb27-19" aria-hidden="true" tabindex="-1"></a>      <span class="at">Min =</span> <span class="cf">if</span> (<span class="fu">length</span>(x_nonmiss)) <span class="fu">min</span>(x_nonmiss) <span class="cf">else</span> <span class="cn">NA_real_</span>,</span>
+<span id="cb27-20"><a href="#cb27-20" aria-hidden="true" tabindex="-1"></a>      <span class="at">Max =</span> <span class="cf">if</span> (<span class="fu">length</span>(x_nonmiss)) <span class="fu">max</span>(x_nonmiss) <span class="cf">else</span> <span class="cn">NA_real_</span></span>
+<span id="cb27-21"><a href="#cb27-21" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb27-22"><a href="#cb27-22" aria-hidden="true" tabindex="-1"></a>  }, by <span class="ot">=</span> g]</span>
+<span id="cb27-23"><a href="#cb27-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-24"><a href="#cb27-24" aria-hidden="true" tabindex="-1"></a>  numeric_cols <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"Mean"</span>, <span class="st">"SD"</span>, <span class="st">"Median"</span>, <span class="st">"Min"</span>, <span class="st">"Max"</span>)</span>
+<span id="cb27-25"><a href="#cb27-25" aria-hidden="true" tabindex="-1"></a>  tab[, (numeric_cols) <span class="sc">:</span><span class="er">=</span> <span class="fu">lapply</span>(.SD, round, <span class="at">digits =</span> digits),</span>
+<span id="cb27-26"><a href="#cb27-26" aria-hidden="true" tabindex="-1"></a>      .SDcols <span class="ot">=</span> numeric_cols]</span>
+<span id="cb27-27"><a href="#cb27-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-28"><a href="#cb27-28" aria-hidden="true" tabindex="-1"></a>  <span class="fu">add_format_label</span>(tab, g, fmt, formats)</span>
+<span id="cb27-29"><a href="#cb27-29" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>Example:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary_by</span>(</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>  DT, income, sex,</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">fmt =</span> <span class="st">"SEXFMTFR"</span>,</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">formats =</span> formats</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>     sex     N     Mean       SD  Median   Min    Max sex_label
+   &lt;num&gt; &lt;int&gt;    &lt;num&gt;    &lt;num&gt;   &lt;num&gt; &lt;num&gt;  &lt;num&gt;    &lt;char&gt;
+1:     1   455 64453.87 17334.42 64242.0     0 110560    Hommes
+2:     2   496 65669.37 17090.03 65688.5 15836 110055    Femmes
+3:    NA    27 60746.48 16613.36 60338.0 32636 101322      &lt;NA&gt;
+4:    -1    22 63545.73 17063.29 65252.5 23651  91888        -1</code></pre>
+</div>
+</div>
+</section>
+<section id="a-longitudinal-example" class="level1" data-number="10">
+<h1 data-number="10"><span class="header-section-number">10</span> 9. A longitudinal example</h1>
+<p>A common production check is the number of records by year and sex. First aggregate the data, then add the value labels without changing the original code.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>year_sex <span class="ot">&lt;-</span> DT[, .N, by <span class="ot">=</span> .(year, sex)]</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>year_sex[, pct <span class="sc">:</span><span class="er">=</span> <span class="fu">round</span>(<span class="dv">100</span> <span class="sc">*</span> N <span class="sc">/</span> <span class="fu">sum</span>(N), <span class="dv">1</span>), by <span class="ot">=</span> year]</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>year_sex <span class="ot">&lt;-</span> <span class="fu">add_format_label</span>(</span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>  year_sex,</span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">var =</span> <span class="st">"sex"</span>,</span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">fmt =</span> <span class="st">"SEXFMTFR"</span>,</span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">formats =</span> formats</span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a>year_sex[]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>     year   sex     N   pct sex_label
+    &lt;int&gt; &lt;num&gt; &lt;int&gt; &lt;num&gt;    &lt;char&gt;
+ 1:  2022     1   122  47.1    Hommes
+ 2:  2023     2   143  53.2    Femmes
+ 3:  2022     2   123  47.5    Femmes
+ 4:  2024    NA     9   4.2      &lt;NA&gt;
+ 5:  2024     1    92  43.0    Hommes
+ 6:  2025     2   125  48.4    Femmes
+ 7:  2025     1   125  48.4    Hommes
+ 8:  2023     1   116  43.1    Hommes
+ 9:  2024     2   105  49.1    Femmes
+10:  2023    -1     4   1.5        -1
+11:  2023    NA     6   2.2      &lt;NA&gt;
+12:  2025    NA     5   1.9      &lt;NA&gt;
+13:  2022    -1     7   2.7        -1
+14:  2022    NA     7   2.7      &lt;NA&gt;
+15:  2024    -1     8   3.7        -1
+16:  2025    -1     3   1.2        -1</code></pre>
+</div>
+</div>
+</section>
+<section id="exporting-results" class="level1" data-number="11">
+<h1 data-number="11"><span class="header-section-number">11</span> 10. Exporting results</h1>
+<p>The functions return ordinary <code>data.table</code> objects. They can be inspected, joined, tested, or exported.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb32"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>tab_sex <span class="ot">&lt;-</span> <span class="fu">freq</span>(DT, sex, <span class="at">fmt =</span> <span class="st">"SEXFMTFR"</span>, <span class="at">formats =</span> formats)</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>tab_education <span class="ot">&lt;-</span> <span class="fu">freq</span>(</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>  DT, education, <span class="at">fmt =</span> <span class="st">"EDUFMTFR"</span>, <span class="at">formats =</span> formats</span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>tab_cross <span class="ot">&lt;-</span> <span class="fu">cross_freq</span>(</span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>  DT, sex, education,</span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">fmt1 =</span> <span class="st">"SEXFMTFR"</span>,</span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">fmt2 =</span> <span class="st">"EDUFMTFR"</span>,</span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">percent =</span> <span class="st">"row"</span>,</span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">formats =</span> formats</span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb32-13"><a href="#cb32-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-14"><a href="#cb32-14" aria-hidden="true" tabindex="-1"></a><span class="fu">fwrite</span>(tab_sex, <span class="st">"frequency_sex.csv"</span>)</span>
+<span id="cb32-15"><a href="#cb32-15" aria-hidden="true" tabindex="-1"></a><span class="fu">fwrite</span>(tab_education, <span class="st">"frequency_education.csv"</span>)</span>
+<span id="cb32-16"><a href="#cb32-16" aria-hidden="true" tabindex="-1"></a><span class="fu">fwrite</span>(tab_cross, <span class="st">"cross_sex_education.csv"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>For an Excel workbook with several sheets, <code>openxlsx</code> is a suitable option. For publication-ready HTML tables, use <code>gt</code>; for Word output, use <code>flextable</code>.</p>
+</section>
+<section id="design-choices-and-limitations" class="level1" data-number="12">
+<h1 data-number="12"><span class="header-section-number">12</span> 11. Design choices and limitations</h1>
+<ul>
+<li>Format definitions are stored in a <strong>named list</strong>. Each element is a named character vector mapping source codes to labels.</li>
+<li>Codes in the list are character strings. This supports numeric and character codes, including codes such as <code>"01"</code>.</li>
+<li>Original data columns are not overwritten by <code>add_format_label()</code>; labels are added in separate columns such as <code>sex_label</code>.</li>
+<li>Codes absent from a format remain visible as their original values.</li>
+<li>Missing values remain <code>NA</code> in <code>freq()</code> and <code>summary_by()</code>. In cross-tabulations, <code>include_na = TRUE</code> displays them as <code>"Missing"</code> so they can form explicit table categories.</li>
+<li>The examples implement discrete value formats. SAS formats based on ranges, <code>OTHER</code>, date formats, or multilabel formats require additional rules.</li>
+<li><code>cross_freq()</code> returns long-form output; <code>cross_freq_wide()</code> returns wide-form output with optional margins.</li>
+</ul>
+<p>The central idea is to keep the tabulation engine independent from the presentation engine. The same results can therefore be reused for quality-control reports, Excel extracts, Quarto reports, and publication tables.</p>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>
