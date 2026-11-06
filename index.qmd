@@ -1,0 +1,19 @@
+---
+title: "SAS2R – Documentation"
+format:
+  html:
+    toc: false
+---
+
+# SAS2R Tutorials
+
+## Documentation
+- [data.table base synthax equivalence](sas_to_datatable_migration_exe.html)
+- [SAS to R formats](sas_r_formats.html)
+- [Tabulate in R and apply formats from list-metadata catalogue](data_table_tab_with_metadata_from_list.html)
+- [Tabulate in R and apply formats from metadata catalogue](data_table_tab_with_metadata_from_list.html)
+- [Recode factor variables: equivalences SAS and R](sas_r_factor_recode.html)
+- [SAS to R: management of longitudinal microdata](sas_to_r_longitudinal_microdata_exe_v3.html)
+- [Joins in data.table](data_table_joins_longitudinal.html)
+- [SAS to R functions](sas_macro_programming_to_r_equivalence_exe.html)
+
