@@ -1,5 +1,5 @@
 ---
-title: "Understanding lapply() in R and data.table"
+title: "Understanding `apply()` in R and `data.table`"
 subtitle: "Applying functions to multiple variables"
 format:
   html:
@@ -264,3 +264,123 @@ tab[
 This approach is shorter, easier to maintain and particularly useful when the number of variables is not known in advance.
 
 **Key takeaway:** `lapply()` is a fundamental tool for writing generic and reusable data.table code. It allows you to apply the same operation systematically to multiple columns without explicitly naming each variable.
+
+# `sapply` — simplify the result
+
+```{r}
+# Applicare sqrt a ogni elemento di una lista
+x <- list(a = 1:4, b = 9:12, c = 25)
+
+x 
+
+lapply(x, sqrt)
+
+```
+
+
+```{r}
+# Same operation with sapply
+sapply(x, length)
+
+
+# Other exemple with a function
+sapply(1:5, function(i) i^2)
+
+```
+
+Direct comparaison
+
+```{r}
+lapply(1:3, function(i) i * 2)   # → lista: [[1]] 2  [[2]] 4  [[3]] 6
+sapply(1:3, function(i) i * 2)   # → vettore: 2 4 6
+```
+
+⚠️ Common pitfall: If the function sometimes returns NULL, `supply` may return a list instead of a vector—it’s better to use `vapply` in production scripts.
+
+# apply — on matrices/arrays, by row or column
+
+```{r}
+m <- matrix(1:9, nrow = 3, byrow = TRUE)
+m
+
+apply(m, 1, sum)   # somma per riga    → 6, 15, 24
+apply(m, 2, mean)  # media per colonna → 4, 5, 6
+apply(m, 1, max)   # massimo per riga  → 3, 6, 9
+```
+
+# mapply — function with multiple arguments in parallel
+
+```{r}
+# Ripetere una stringa n volte, con n variabile
+mapply(rep, x = c("a", "b", "c"), times = c(1, 2, 3))
+
+
+# Esempio numerico: somma elemento per elemento
+mapply(function(a, b) a + b, 1:3, 10:12)
+
+```
+
+# tapply — apply by groups
+
+```{r}
+# Media degli stipendi per reparto
+dati <- data.frame(
+  stipendio = c(2000, 2500, 3000, 1800, 2200, 4000),
+  reparto   = c("A", "A", "A", "B", "B", "C")
+)
+
+tapply(dati$stipendio, dati$reparto, mean)
+#>       A        B        C
+#> 2500.00  2000.00  4000.00
+
+tapply(dati$stipendio, dati$reparto, length)
+#> A B C
+#> 3 2 1
+```
+
+# vapply — like sapply, but with a declared type
+
+```{r}
+# Dichiaro che ogni risultato è un numeric di lunghezza 1
+
+
+# Se la funzione restituisce un tipo diverso → errore esplicito
+vapply(list(1:3, 4:6), length, numeric(1))  # OK → 3 3
+# vapply(list(1:3, 4:6), length, character(1)) ❌ Errore: tipo sbagliato
+```
+
+Advantage: If something goes wrong, you get a clear error instead of a silently incorrect result, as with `sapply`.
+
+# Built-in Example: Data Cleaning
+
+Scenario: You have a list of data frames and want to extract the number of rows and columns.
+
+```{r}
+
+df_list <- list(
+  df1 = data.frame(a = 1:3, b = 4:6),
+  df2 = data.frame(x = 1:5),
+  df3 = data.frame(y = 1:2, z = 3:4, w = 5:6)
+)
+
+# Dimensions of each data frame
+sapply(df_list, dim)
+```
+
+
+```{r}
+# Number of rows as a simple vector
+sapply(df_list, nrow)
+```
+
+# Resumé
+
+
+| Function | Typical input | Output | Main use |
+|----------|--------------|--------|----------|
+| `lapply` | list/vector | list | safe generic operations |
+| `sapply` | list/vector | vector/matrix/list | compact output, interactive use |
+| `vapply` | list/vector | vector/matrix | robust scripts, guaranteed type |
+| `apply` | matrix/array | vector/array | rows or columns |
+| `mapply` | multiple vectors | vector/list | multi-argument function |
+| `tapply` | vector + factor | array/table | group-wise aggregations |

@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Understanding lapply() in R and data.table</title>
+<title>Understanding apply() in R and data.table</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -108,6 +108,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#apply-rounding-to-several-columns" id="toc-apply-rounding-to-several-columns" class="nav-link" data-scroll-target="#apply-rounding-to-several-columns"><span class="header-section-number">4.3</span> Apply rounding to several columns</a></li>
   </ul></li>
   <li><a href="#why-is-lapply-useful-in-data.table" id="toc-why-is-lapply-useful-in-data.table" class="nav-link" data-scroll-target="#why-is-lapply-useful-in-data.table"><span class="header-section-number">5</span> Why is lapply() useful in data.table?</a></li>
+  <li><a href="#sapply-simplify-the-result" id="toc-sapply-simplify-the-result" class="nav-link" data-scroll-target="#sapply-simplify-the-result"><span class="header-section-number">6</span> <code>sapply</code> — simplify the result</a></li>
+  <li><a href="#apply-on-matricesarrays-by-row-or-column" id="toc-apply-on-matricesarrays-by-row-or-column" class="nav-link" data-scroll-target="#apply-on-matricesarrays-by-row-or-column"><span class="header-section-number">7</span> apply — on matrices/arrays, by row or column</a></li>
+  <li><a href="#mapply-function-with-multiple-arguments-in-parallel" id="toc-mapply-function-with-multiple-arguments-in-parallel" class="nav-link" data-scroll-target="#mapply-function-with-multiple-arguments-in-parallel"><span class="header-section-number">8</span> mapply — function with multiple arguments in parallel</a></li>
+  <li><a href="#tapply-apply-by-groups" id="toc-tapply-apply-by-groups" class="nav-link" data-scroll-target="#tapply-apply-by-groups"><span class="header-section-number">9</span> tapply — apply by groups</a></li>
+  <li><a href="#vapply-like-sapply-but-with-a-declared-type" id="toc-vapply-like-sapply-but-with-a-declared-type" class="nav-link" data-scroll-target="#vapply-like-sapply-but-with-a-declared-type"><span class="header-section-number">10</span> vapply — like sapply, but with a declared type</a></li>
+  <li><a href="#built-in-example-data-cleaning" id="toc-built-in-example-data-cleaning" class="nav-link" data-scroll-target="#built-in-example-data-cleaning"><span class="header-section-number">11</span> Built-in Example: Data Cleaning</a></li>
+  <li><a href="#resumé" id="toc-resumé" class="nav-link" data-scroll-target="#resumé"><span class="header-section-number">12</span> Resumé</a></li>
   </ul>
 </nav>
 </div>
@@ -115,7 +122,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title">Understanding lapply() in R and data.table</h1>
+<h1 class="title">Understanding <code>apply()</code> in R and <code>data.table</code></h1>
 <p class="subtitle lead">Applying functions to multiple variables</p>
 </div>
 
@@ -431,6 +438,240 @@ $c
 <span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>This approach is shorter, easier to maintain and particularly useful when the number of variables is not known in advance.</p>
 <p><strong>Key takeaway:</strong> <code>lapply()</code> is a fundamental tool for writing generic and reusable data.table code. It allows you to apply the same operation systematically to multiple columns without explicitly naming each variable.</p>
+</section>
+<section id="sapply-simplify-the-result" class="level1" data-number="6">
+<h1 data-number="6"><span class="header-section-number">6</span> <code>sapply</code> — simplify the result</h1>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Applicare sqrt a ogni elemento di una lista</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>x <span class="ot">&lt;-</span> <span class="fu">list</span>(<span class="at">a =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">4</span>, <span class="at">b =</span> <span class="dv">9</span><span class="sc">:</span><span class="dv">12</span>, <span class="at">c =</span> <span class="dv">25</span>)</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>x </span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>$a
+[1] 1 2 3 4
+
+$b
+[1]  9 10 11 12
+
+$c
+[1] 25</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb33"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="fu">lapply</span>(x, sqrt)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>$a
+[1] 1.000000 1.414214 1.732051 2.000000
+
+$b
+[1] 3.000000 3.162278 3.316625 3.464102
+
+$c
+[1] 5</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb35"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Same operation with sapply</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="fu">sapply</span>(x, length)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>a b c 
+4 4 1 </code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb37"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Other exemple with a function</span></span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a><span class="fu">sapply</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">5</span>, <span class="cf">function</span>(i) i<span class="sc">^</span><span class="dv">2</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1]  1  4  9 16 25</code></pre>
+</div>
+</div>
+<p>Direct comparaison</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb39"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="fu">lapply</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">3</span>, <span class="cf">function</span>(i) i <span class="sc">*</span> <span class="dv">2</span>)   <span class="co"># → lista: [[1]] 2  [[2]] 4  [[3]] 6</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[[1]]
+[1] 2
+
+[[2]]
+[1] 4
+
+[[3]]
+[1] 6</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb41"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sapply</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">3</span>, <span class="cf">function</span>(i) i <span class="sc">*</span> <span class="dv">2</span>)   <span class="co"># → vettore: 2 4 6</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 2 4 6</code></pre>
+</div>
+</div>
+<p>⚠️ Common pitfall: If the function sometimes returns NULL, <code>supply</code> may return a list instead of a vector—it’s better to use <code>vapply</code> in production scripts.</p>
+</section>
+<section id="apply-on-matricesarrays-by-row-or-column" class="level1" data-number="7">
+<h1 data-number="7"><span class="header-section-number">7</span> apply — on matrices/arrays, by row or column</h1>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb43"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a>m <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">9</span>, <span class="at">nrow =</span> <span class="dv">3</span>, <span class="at">byrow =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a>m</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>     [,1] [,2] [,3]
+[1,]    1    2    3
+[2,]    4    5    6
+[3,]    7    8    9</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb45"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="fu">apply</span>(m, <span class="dv">1</span>, sum)   <span class="co"># somma per riga    → 6, 15, 24</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1]  6 15 24</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb47"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="fu">apply</span>(m, <span class="dv">2</span>, mean)  <span class="co"># media per colonna → 4, 5, 6</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 4 5 6</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb49"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="fu">apply</span>(m, <span class="dv">1</span>, max)   <span class="co"># massimo per riga  → 3, 6, 9</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 3 6 9</code></pre>
+</div>
+</div>
+</section>
+<section id="mapply-function-with-multiple-arguments-in-parallel" class="level1" data-number="8">
+<h1 data-number="8"><span class="header-section-number">8</span> mapply — function with multiple arguments in parallel</h1>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb51"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Ripetere una stringa n volte, con n variabile</span></span>
+<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a><span class="fu">mapply</span>(rep, <span class="at">x =</span> <span class="fu">c</span>(<span class="st">"a"</span>, <span class="st">"b"</span>, <span class="st">"c"</span>), <span class="at">times =</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>$a
+[1] "a"
+
+$b
+[1] "b" "b"
+
+$c
+[1] "c" "c" "c"</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb53"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Esempio numerico: somma elemento per elemento</span></span>
+<span id="cb53-2"><a href="#cb53-2" aria-hidden="true" tabindex="-1"></a><span class="fu">mapply</span>(<span class="cf">function</span>(a, b) a <span class="sc">+</span> b, <span class="dv">1</span><span class="sc">:</span><span class="dv">3</span>, <span class="dv">10</span><span class="sc">:</span><span class="dv">12</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 11 13 15</code></pre>
+</div>
+</div>
+</section>
+<section id="tapply-apply-by-groups" class="level1" data-number="9">
+<h1 data-number="9"><span class="header-section-number">9</span> tapply — apply by groups</h1>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb55"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb55-1"><a href="#cb55-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Media degli stipendi per reparto</span></span>
+<span id="cb55-2"><a href="#cb55-2" aria-hidden="true" tabindex="-1"></a>dati <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb55-3"><a href="#cb55-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">stipendio =</span> <span class="fu">c</span>(<span class="dv">2000</span>, <span class="dv">2500</span>, <span class="dv">3000</span>, <span class="dv">1800</span>, <span class="dv">2200</span>, <span class="dv">4000</span>),</span>
+<span id="cb55-4"><a href="#cb55-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">reparto   =</span> <span class="fu">c</span>(<span class="st">"A"</span>, <span class="st">"A"</span>, <span class="st">"A"</span>, <span class="st">"B"</span>, <span class="st">"B"</span>, <span class="st">"C"</span>)</span>
+<span id="cb55-5"><a href="#cb55-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb55-6"><a href="#cb55-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb55-7"><a href="#cb55-7" aria-hidden="true" tabindex="-1"></a><span class="fu">tapply</span>(dati<span class="sc">$</span>stipendio, dati<span class="sc">$</span>reparto, mean)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>   A    B    C 
+2500 2000 4000 </code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb57"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb57-1"><a href="#cb57-1" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;       A        B        C</span></span>
+<span id="cb57-2"><a href="#cb57-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2500.00  2000.00  4000.00</span></span>
+<span id="cb57-3"><a href="#cb57-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb57-4"><a href="#cb57-4" aria-hidden="true" tabindex="-1"></a><span class="fu">tapply</span>(dati<span class="sc">$</span>stipendio, dati<span class="sc">$</span>reparto, length)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>A B C 
+3 2 1 </code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb59"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb59-1"><a href="#cb59-1" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; A B C</span></span>
+<span id="cb59-2"><a href="#cb59-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3 2 1</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="vapply-like-sapply-but-with-a-declared-type" class="level1" data-number="10">
+<h1 data-number="10"><span class="header-section-number">10</span> vapply — like sapply, but with a declared type</h1>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb60"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb60-1"><a href="#cb60-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Dichiaro che ogni risultato è un numeric di lunghezza 1</span></span>
+<span id="cb60-2"><a href="#cb60-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb60-3"><a href="#cb60-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb60-4"><a href="#cb60-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Se la funzione restituisce un tipo diverso → errore esplicito</span></span>
+<span id="cb60-5"><a href="#cb60-5" aria-hidden="true" tabindex="-1"></a><span class="fu">vapply</span>(<span class="fu">list</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">3</span>, <span class="dv">4</span><span class="sc">:</span><span class="dv">6</span>), length, <span class="fu">numeric</span>(<span class="dv">1</span>))  <span class="co"># OK → 3 3</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 3 3</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb62"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb62-1"><a href="#cb62-1" aria-hidden="true" tabindex="-1"></a><span class="co"># vapply(list(1:3, 4:6), length, character(1)) ❌ Errore: tipo sbagliato</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>Advantage: If something goes wrong, you get a clear error instead of a silently incorrect result, as with <code>sapply</code>.</p>
+</section>
+<section id="built-in-example-data-cleaning" class="level1" data-number="11">
+<h1 data-number="11"><span class="header-section-number">11</span> Built-in Example: Data Cleaning</h1>
+<p>Scenario: You have a list of data frames and want to extract the number of rows and columns.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb63"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb63-1"><a href="#cb63-1" aria-hidden="true" tabindex="-1"></a>df_list <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb63-2"><a href="#cb63-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">df1 =</span> <span class="fu">data.frame</span>(<span class="at">a =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">3</span>, <span class="at">b =</span> <span class="dv">4</span><span class="sc">:</span><span class="dv">6</span>),</span>
+<span id="cb63-3"><a href="#cb63-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">df2 =</span> <span class="fu">data.frame</span>(<span class="at">x =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">5</span>),</span>
+<span id="cb63-4"><a href="#cb63-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">df3 =</span> <span class="fu">data.frame</span>(<span class="at">y =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">2</span>, <span class="at">z =</span> <span class="dv">3</span><span class="sc">:</span><span class="dv">4</span>, <span class="at">w =</span> <span class="dv">5</span><span class="sc">:</span><span class="dv">6</span>)</span>
+<span id="cb63-5"><a href="#cb63-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb63-6"><a href="#cb63-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb63-7"><a href="#cb63-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Dimensions of each data frame</span></span>
+<span id="cb63-8"><a href="#cb63-8" aria-hidden="true" tabindex="-1"></a><span class="fu">sapply</span>(df_list, dim)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>     df1 df2 df3
+[1,]   3   5   2
+[2,]   2   1   3</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb65"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb65-1"><a href="#cb65-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Number of rows as a simple vector</span></span>
+<span id="cb65-2"><a href="#cb65-2" aria-hidden="true" tabindex="-1"></a><span class="fu">sapply</span>(df_list, nrow)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>df1 df2 df3 
+  3   5   2 </code></pre>
+</div>
+</div>
+</section>
+<section id="resumé" class="level1" data-number="12">
+<h1 data-number="12"><span class="header-section-number">12</span> Resumé</h1>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 23%">
+<col style="width: 33%">
+<col style="width: 19%">
+<col style="width: 23%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Function</th>
+<th>Typical input</th>
+<th>Output</th>
+<th>Main use</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>lapply</code></td>
+<td>list/vector</td>
+<td>list</td>
+<td>safe generic operations</td>
+</tr>
+<tr class="even">
+<td><code>sapply</code></td>
+<td>list/vector</td>
+<td>vector/matrix/list</td>
+<td>compact output, interactive use</td>
+</tr>
+<tr class="odd">
+<td><code>vapply</code></td>
+<td>list/vector</td>
+<td>vector/matrix</td>
+<td>robust scripts, guaranteed type</td>
+</tr>
+<tr class="even">
+<td><code>apply</code></td>
+<td>matrix/array</td>
+<td>vector/array</td>
+<td>rows or columns</td>
+</tr>
+<tr class="odd">
+<td><code>mapply</code></td>
+<td>multiple vectors</td>
+<td>vector/list</td>
+<td>multi-argument function</td>
+</tr>
+<tr class="even">
+<td><code>tapply</code></td>
+<td>vector + factor</td>
+<td>array/table</td>
+<td>group-wise aggregations</td>
+</tr>
+</tbody>
+</table>
 </section>
 
 </main>
