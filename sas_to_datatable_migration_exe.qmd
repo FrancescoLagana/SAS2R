@@ -31,7 +31,7 @@ it.
 independent copy is needed.
 
 ```{r}
-#| label: set2up
+#| label: set1up
 library(data.table)
 ```
 
