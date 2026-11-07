@@ -32,7 +32,6 @@ independent copy is needed.
 
 ```{r}
 #| label: set2up
-#| include: false
 library(data.table)
 ```
 
