@@ -76,7 +76,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="sas_macro_programming_to_r_equivalence_exe_files/libs/quarto-html/quarto-syntax-highlighting-17888a1159294d3eb470f19f6f52f5a5.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="sas_macro_programming_to_r_equivalence_exe_files/libs/bootstrap/bootstrap.min.js"></script>
 <link href="sas_macro_programming_to_r_equivalence_exe_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="sas_macro_programming_to_r_equivalence_exe_files/libs/bootstrap/bootstrap-90149ede68ca959310328622de74cb7a.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="sas_macro_programming_to_r_equivalence_exe_files/libs/bootstrap/bootstrap-9796be37b2396decd55aa489daf68ba3.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 
 
 </head>
@@ -89,20 +89,20 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <h2 id="toc-title">Table of contents</h2>
    
   <ul>
-  <li><a href="#shared-example-data" id="toc-shared-example-data" class="nav-link active" data-scroll-target="#shared-example-data"><span class="header-section-number">1</span> 0. Shared example data</a></li>
-  <li><a href="#the-mental-model" id="toc-the-mental-model" class="nav-link" data-scroll-target="#the-mental-model"><span class="header-section-number">2</span> 1. The mental model</a>
+  <li><a href="#shared-example-data" id="toc-shared-example-data" class="nav-link active" data-scroll-target="#shared-example-data"><span class="header-section-number">1</span> Shared example data</a></li>
+  <li><a href="#the-mental-model" id="toc-the-mental-model" class="nav-link" data-scroll-target="#the-mental-model"><span class="header-section-number">2</span> The mental model</a>
   <ul class="collapse">
-  <li><a href="#sas-macro-processing" id="toc-sas-macro-processing" class="nav-link" data-scroll-target="#sas-macro-processing"><span class="header-section-number">2.1</span> 1.1 SAS macro processing</a></li>
-  <li><a href="#idiomatic-r" id="toc-idiomatic-r" class="nav-link" data-scroll-target="#idiomatic-r"><span class="header-section-number">2.2</span> 1.2 Idiomatic R</a></li>
+  <li><a href="#sas-macro-processing" id="toc-sas-macro-processing" class="nav-link" data-scroll-target="#sas-macro-processing"><span class="header-section-number">2.1</span> SAS macro processing</a></li>
+  <li><a href="#idiomatic-r" id="toc-idiomatic-r" class="nav-link" data-scroll-target="#idiomatic-r"><span class="header-section-number">2.2</span> Idiomatic R</a></li>
   </ul></li>
-  <li><a href="#core-equivalence-table" id="toc-core-equivalence-table" class="nav-link" data-scroll-target="#core-equivalence-table"><span class="header-section-number">3</span> 2. Core equivalence table</a>
+  <li><a href="#core-equivalence-table" id="toc-core-equivalence-table" class="nav-link" data-scroll-target="#core-equivalence-table"><span class="header-section-number">3</span> Core equivalence table</a>
   <ul class="collapse">
   <li><a href="#r" id="toc-r" class="nav-link" data-scroll-target="#r"><span class="header-section-number">3.1</span> R</a>
   <ul class="collapse">
   <li><a href="#important-difference" id="toc-important-difference" class="nav-link" data-scroll-target="#important-difference"><span class="header-section-number">3.1.1</span> Important difference</a></li>
   </ul></li>
   </ul></li>
-  <li><a href="#macro-definitions-and-parameters" id="toc-macro-definitions-and-parameters" class="nav-link" data-scroll-target="#macro-definitions-and-parameters"><span class="header-section-number">4</span> 4. Macro definitions and parameters</a>
+  <li><a href="#macro-definitions-and-parameters" id="toc-macro-definitions-and-parameters" class="nav-link" data-scroll-target="#macro-definitions-and-parameters"><span class="header-section-number">4</span> Macro definitions and parameters</a>
   <ul class="collapse">
   <li><a href="#sas" id="toc-sas" class="nav-link" data-scroll-target="#sas"><span class="header-section-number">4.1</span> SAS</a></li>
   <li><a href="#r-function" id="toc-r-function" class="nav-link" data-scroll-target="#r-function"><span class="header-section-number">4.2</span> R function</a></li>
@@ -112,37 +112,37 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#sas-1" id="toc-sas-1" class="nav-link" data-scroll-target="#sas-1"><span class="header-section-number">5.1</span> SAS</a></li>
   <li><a href="#r-1" id="toc-r-1" class="nav-link" data-scroll-target="#r-1"><span class="header-section-number">5.2</span> R</a></li>
   </ul></li>
-  <li><a href="#iteration-do" id="toc-iteration-do" class="nav-link" data-scroll-target="#iteration-do"><span class="header-section-number">6</span> 6. Iteration: <code>%DO</code></a>
+  <li><a href="#iteration-do" id="toc-iteration-do" class="nav-link" data-scroll-target="#iteration-do"><span class="header-section-number">6</span> Iteration: <code>%DO</code></a>
   <ul class="collapse">
-  <li><a href="#numeric-loop" id="toc-numeric-loop" class="nav-link" data-scroll-target="#numeric-loop"><span class="header-section-number">6.1</span> 6.1 Numeric loop</a></li>
-  <li><a href="#iterating-over-a-list-of-values" id="toc-iterating-over-a-list-of-values" class="nav-link" data-scroll-target="#iterating-over-a-list-of-values"><span class="header-section-number">6.2</span> 6.2 Iterating over a list of values</a></li>
+  <li><a href="#numeric-loop" id="toc-numeric-loop" class="nav-link" data-scroll-target="#numeric-loop"><span class="header-section-number">6.1</span> Numeric loop</a></li>
+  <li><a href="#iterating-over-a-list-of-values" id="toc-iterating-over-a-list-of-values" class="nav-link" data-scroll-target="#iterating-over-a-list-of-values"><span class="header-section-number">6.2</span> Iterating over a list of values</a></li>
   </ul></li>
-  <li><a href="#sysfunc-eval-and-sysevalf" id="toc-sysfunc-eval-and-sysevalf" class="nav-link" data-scroll-target="#sysfunc-eval-and-sysevalf"><span class="header-section-number">7</span> 7. <code>%SYSFUNC</code>, <code>%EVAL</code>, and <code>%SYSEVALF</code></a></li>
-  <li><a href="#local-and-global-scope-local-global" id="toc-local-and-global-scope-local-global" class="nav-link" data-scroll-target="#local-and-global-scope-local-global"><span class="header-section-number">8</span> 8. Local and global scope: <code>%LOCAL</code> / <code>%GLOBAL</code></a></li>
-  <li><a href="#indirect-references-namei" id="toc-indirect-references-namei" class="nav-link" data-scroll-target="#indirect-references-namei"><span class="header-section-number">9</span> 9. Indirect references: <code>&amp;&amp;name&amp;i</code></a></li>
-  <li><a href="#call-symputx-symget-and-proc-sql-into" id="toc-call-symputx-symget-and-proc-sql-into" class="nav-link" data-scroll-target="#call-symputx-symget-and-proc-sql-into"><span class="header-section-number">10</span> 10. <code>CALL SYMPUTX</code>, <code>SYMGET</code>, and <code>PROC SQL INTO</code></a>
+  <li><a href="#sysfunc-eval-and-sysevalf" id="toc-sysfunc-eval-and-sysevalf" class="nav-link" data-scroll-target="#sysfunc-eval-and-sysevalf"><span class="header-section-number">7</span> <code>%SYSFUNC</code>, <code>%EVAL</code>, and <code>%SYSEVALF</code></a></li>
+  <li><a href="#local-and-global-scope-local-global" id="toc-local-and-global-scope-local-global" class="nav-link" data-scroll-target="#local-and-global-scope-local-global"><span class="header-section-number">8</span> Local and global scope: <code>%LOCAL</code> / <code>%GLOBAL</code></a></li>
+  <li><a href="#indirect-references-namei" id="toc-indirect-references-namei" class="nav-link" data-scroll-target="#indirect-references-namei"><span class="header-section-number">9</span> Indirect references: <code>&amp;&amp;name&amp;i</code></a></li>
+  <li><a href="#call-symputx-symget-and-proc-sql-into" id="toc-call-symputx-symget-and-proc-sql-into" class="nav-link" data-scroll-target="#call-symputx-symget-and-proc-sql-into"><span class="header-section-number">10</span> <code>CALL SYMPUTX</code>, <code>SYMGET</code>, and <code>PROC SQL INTO</code></a>
   <ul class="collapse">
   <li><a href="#sas-2" id="toc-sas-2" class="nav-link" data-scroll-target="#sas-2"><span class="header-section-number">10.1</span> SAS</a></li>
   <li><a href="#r-2" id="toc-r-2" class="nav-link" data-scroll-target="#r-2"><span class="header-section-number">10.2</span> R</a></li>
   </ul></li>
-  <li><a href="#include-and-modular-code" id="toc-include-and-modular-code" class="nav-link" data-scroll-target="#include-and-modular-code"><span class="header-section-number">11</span> 11. <code>%INCLUDE</code> and modular code</a></li>
-  <li><a href="#text-generation-versus-data-driven-programming" id="toc-text-generation-versus-data-driven-programming" class="nav-link" data-scroll-target="#text-generation-versus-data-driven-programming"><span class="header-section-number">12</span> 12. Text generation versus data-driven programming</a></li>
-  <li><a href="#sas-macro-quoting-and-r-strings" id="toc-sas-macro-quoting-and-r-strings" class="nav-link" data-scroll-target="#sas-macro-quoting-and-r-strings"><span class="header-section-number">13</span> 13. SAS macro quoting and R strings</a></li>
-  <li><a href="#when-the-r-macro-package-may-be-relevant" id="toc-when-the-r-macro-package-may-be-relevant" class="nav-link" data-scroll-target="#when-the-r-macro-package-may-be-relevant"><span class="header-section-number">14</span> 14. When the R <code>macro</code> package may be relevant</a></li>
-  <li><a href="#migration-checklist" id="toc-migration-checklist" class="nav-link" data-scroll-target="#migration-checklist"><span class="header-section-number">15</span> 15. Migration checklist</a></li>
-  <li><a href="#compact-reference-sas-macro-to-r" id="toc-compact-reference-sas-macro-to-r" class="nav-link" data-scroll-target="#compact-reference-sas-macro-to-r"><span class="header-section-number">16</span> 16. Compact reference: SAS macro to R</a></li>
-  <li><a href="#further-reading" id="toc-further-reading" class="nav-link" data-scroll-target="#further-reading"><span class="header-section-number">17</span> 17. Further reading</a></li>
+  <li><a href="#include-and-modular-code" id="toc-include-and-modular-code" class="nav-link" data-scroll-target="#include-and-modular-code"><span class="header-section-number">11</span> <code>%INCLUDE</code> and modular code</a></li>
+  <li><a href="#text-generation-versus-data-driven-programming" id="toc-text-generation-versus-data-driven-programming" class="nav-link" data-scroll-target="#text-generation-versus-data-driven-programming"><span class="header-section-number">12</span> Text generation versus data-driven programming</a></li>
+  <li><a href="#sas-macro-quoting-and-r-strings" id="toc-sas-macro-quoting-and-r-strings" class="nav-link" data-scroll-target="#sas-macro-quoting-and-r-strings"><span class="header-section-number">13</span> SAS macro quoting and R strings</a></li>
+  <li><a href="#when-the-r-macro-package-may-be-relevant" id="toc-when-the-r-macro-package-may-be-relevant" class="nav-link" data-scroll-target="#when-the-r-macro-package-may-be-relevant"><span class="header-section-number">14</span> When the R <code>macro</code> package may be relevant</a></li>
+  <li><a href="#migration-checklist" id="toc-migration-checklist" class="nav-link" data-scroll-target="#migration-checklist"><span class="header-section-number">15</span> Migration checklist</a></li>
+  <li><a href="#compact-reference-sas-macro-to-r" id="toc-compact-reference-sas-macro-to-r" class="nav-link" data-scroll-target="#compact-reference-sas-macro-to-r"><span class="header-section-number">16</span> Compact reference: SAS macro to R</a></li>
+  <li><a href="#further-reading" id="toc-further-reading" class="nav-link" data-scroll-target="#further-reading"><span class="header-section-number">17</span> Further reading</a></li>
   <li><a href="#returning-values-from-functions-return-and-implicit-return" id="toc-returning-values-from-functions-return-and-implicit-return" class="nav-link" data-scroll-target="#returning-values-from-functions-return-and-implicit-return"><span class="header-section-number">18</span> 18. Returning values from functions: <code>return()</code> and implicit return</a></li>
-  <li><a href="#functions-that-create-one-data-frame" id="toc-functions-that-create-one-data-frame" class="nav-link" data-scroll-target="#functions-that-create-one-data-frame"><span class="header-section-number">19</span> 19. Functions that create one data frame</a></li>
-  <li><a href="#functions-that-create-multiple-data-frames" id="toc-functions-that-create-multiple-data-frames" class="nav-link" data-scroll-target="#functions-that-create-multiple-data-frames"><span class="header-section-number">20</span> 20. Functions that create multiple data frames</a>
+  <li><a href="#functions-that-create-one-data-frame" id="toc-functions-that-create-one-data-frame" class="nav-link" data-scroll-target="#functions-that-create-one-data-frame"><span class="header-section-number">19</span> Functions that create one data frame</a></li>
+  <li><a href="#functions-that-create-multiple-data-frames" id="toc-functions-that-create-multiple-data-frames" class="nav-link" data-scroll-target="#functions-that-create-multiple-data-frames"><span class="header-section-number">20</span> Functions that create multiple data frames</a>
   <ul class="collapse">
-  <li><a href="#returning-several-derived-datasets" id="toc-returning-several-derived-datasets" class="nav-link" data-scroll-target="#returning-several-derived-datasets"><span class="header-section-number">20.1</span> 20.1 Returning several derived datasets</a></li>
+  <li><a href="#returning-several-derived-datasets" id="toc-returning-several-derived-datasets" class="nav-link" data-scroll-target="#returning-several-derived-datasets"><span class="header-section-number">20.1</span> Returning several derived datasets</a></li>
   </ul></li>
-  <li><a href="#sas-data-steps-and-procedures-that-produce-datasets" id="toc-sas-data-steps-and-procedures-that-produce-datasets" class="nav-link" data-scroll-target="#sas-data-steps-and-procedures-that-produce-datasets"><span class="header-section-number">21</span> 21. SAS DATA steps and procedures that produce datasets</a>
+  <li><a href="#sas-data-steps-and-procedures-that-produce-datasets" id="toc-sas-data-steps-and-procedures-that-produce-datasets" class="nav-link" data-scroll-target="#sas-data-steps-and-procedures-that-produce-datasets"><span class="header-section-number">21</span> SAS DATA steps and procedures that produce datasets</a>
   <ul class="collapse">
-  <li><a href="#if-the-function-should-save-datasets-to-disk" id="toc-if-the-function-should-save-datasets-to-disk" class="nav-link" data-scroll-target="#if-the-function-should-save-datasets-to-disk"><span class="header-section-number">21.1</span> 21.1 If the function should save datasets to disk</a></li>
+  <li><a href="#if-the-function-should-save-datasets-to-disk" id="toc-if-the-function-should-save-datasets-to-disk" class="nav-link" data-scroll-target="#if-the-function-should-save-datasets-to-disk"><span class="header-section-number">21.1</span> If the function should save datasets to disk</a></li>
   </ul></li>
-  <li><a href="#mapping-sas-output-patterns-to-r-return-patterns" id="toc-mapping-sas-output-patterns-to-r-return-patterns" class="nav-link" data-scroll-target="#mapping-sas-output-patterns-to-r-return-patterns"><span class="header-section-number">22</span> 22. Mapping SAS output patterns to R return patterns</a></li>
+  <li><a href="#mapping-sas-output-patterns-to-r-return-patterns" id="toc-mapping-sas-output-patterns-to-r-return-patterns" class="nav-link" data-scroll-target="#mapping-sas-output-patterns-to-r-return-patterns"><span class="header-section-number">22</span> Mapping SAS output patterns to R return patterns</a></li>
   </ul>
 <div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="sas_macro_programming_to_r_equivalence_exe.pdf"><i class="bi bi-file-pdf"></i>PDF</a></li></ul></div></nav>
 </div>
@@ -189,7 +189,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </ul>
 <p>This guide focuses on practical equivalence: how to translate macro-driven SAS workflows into idiomatic R, while also identifying where a literal macro-style translation may be useful.</p>
 <section id="shared-example-data" class="level1" data-number="1">
-<h1 data-number="1"><span class="header-section-number">1</span> 0. Shared example data</h1>
+<h1 data-number="1"><span class="header-section-number">1</span> Shared example data</h1>
 <p>All chunks below are <strong>self-contained and reproducible</strong>. They rely on a small set of example objects created once here. Every later chunk that needs a table uses the object directly (and, where a mutation is shown, works on a <code>copy()</code> of it).</p>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">42</span>)</span>
@@ -230,9 +230,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </section>
 <section id="the-mental-model" class="level1" data-number="2">
-<h1 data-number="2"><span class="header-section-number">2</span> 1. The mental model</h1>
+<h1 data-number="2"><span class="header-section-number">2</span> The mental model</h1>
 <section id="sas-macro-processing" class="level2" data-number="2.1">
-<h2 data-number="2.1" class="anchored" data-anchor-id="sas-macro-processing"><span class="header-section-number">2.1</span> 1.1 SAS macro processing</h2>
+<h2 data-number="2.1" class="anchored" data-anchor-id="sas-macro-processing"><span class="header-section-number">2.1</span> SAS macro processing</h2>
 <p>A typical SAS macro workflow has two layers:</p>
 <ol type="1">
 <li>Macro processor resolves macro variables and executes macro statements.</li>
@@ -241,16 +241,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <pre class="sas"><code>%let year = 2025;
 
 %macro summarize(data=, year=);
-proc means data=&amp;data;
-where year = &amp;year;
-run;
+
+  proc means data=&amp;data;
+    where year = &amp;year;
+  run;
+  
 %mend;
 
 %summarize(data=work.population, year=&amp;year)</code></pre>
 <p>The macro generates SAS source text. <code>&amp;year</code> is substituted before the procedure runs.</p>
 </section>
 <section id="idiomatic-r" class="level2" data-number="2.2">
-<h2 data-number="2.2" class="anchored" data-anchor-id="idiomatic-r"><span class="header-section-number">2.2</span> 1.2 Idiomatic R</h2>
+<h2 data-number="2.2" class="anchored" data-anchor-id="idiomatic-r"><span class="header-section-number">2.2</span> Idiomatic R</h2>
 <p>In R, the usual equivalent is a function with explicit arguments:</p>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>summarize_data <span class="ot">&lt;-</span> <span class="cf">function</span>(data, year) {</span>
@@ -274,7 +276,7 @@ run;
 </section>
 </section>
 <section id="core-equivalence-table" class="level1" data-number="3">
-<h1 data-number="3"><span class="header-section-number">3</span> 2. Core equivalence table</h1>
+<h1 data-number="3"><span class="header-section-number">3</span> Core equivalence table</h1>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 25%">
@@ -449,14 +451,14 @@ run;
 </tr>
 </tbody>
 </table>
-<p># 3. Macro variables: <code>%LET</code> and <code>&amp;name</code></p>
+<p># Macro variables: <code>%LET</code> and <code>&amp;name</code></p>
 <p>## SAS</p>
 <pre class="sas"><code>%let input_ds = work.people;
 %let reference_year = 2025;
 
 proc freq data=&amp;input_ds;
-tables sex;
-where year = &amp;reference_year;
+  tables sex;
+  where year = &amp;reference_year;
 run;</code></pre>
 <section id="r" class="level2" data-number="3.1">
 <h2 data-number="3.1" class="anchored" data-anchor-id="r"><span class="header-section-number">3.1</span> R</h2>
@@ -486,13 +488,13 @@ F M
 </section>
 </section>
 <section id="macro-definitions-and-parameters" class="level1" data-number="4">
-<h1 data-number="4"><span class="header-section-number">4</span> 4. Macro definitions and parameters</h1>
+<h1 data-number="4"><span class="header-section-number">4</span> Macro definitions and parameters</h1>
 <section id="sas" class="level2" data-number="4.1">
 <h2 data-number="4.1" class="anchored" data-anchor-id="sas"><span class="header-section-number">4.1</span> SAS</h2>
 <pre class="sas"><code>%macro tabulate(data=, variable=);
-proc freq data=&amp;data;
-tables &amp;variable;
-run;
+  proc freq data=&amp;data;
+    tables &amp;variable;
+  run;
 %mend;
 
 %tabulate(data=work.people, variable=sex)</code></pre>
@@ -519,14 +521,16 @@ F M
 <section id="sas-1" class="level2" data-number="5.1">
 <h2 data-number="5.1" class="anchored" data-anchor-id="sas-1"><span class="header-section-number">5.1</span> SAS</h2>
 <pre class="sas"><code>%macro choose(data=, mode=);
-%if %upcase(&amp;mode) = FULL %then %do;
-proc means data=&amp;data;
-run;
-%end;
-%else %do;
-proc freq data=&amp;data;
-run;
-%end;
+
+  %if %upcase(&amp;mode) = FULL %then %do;
+    proc means data=&amp;data;
+    run;
+  %end;
+  %else %do;
+    proc freq data=&amp;data;
+    run;
+  %end;
+  
 %mend;</code></pre>
 </section>
 <section id="r-1" class="level2" data-number="5.2">
@@ -558,14 +562,16 @@ run;
 </section>
 </section>
 <section id="iteration-do" class="level1" data-number="6">
-<h1 data-number="6"><span class="header-section-number">6</span> 6. Iteration: <code>%DO</code></h1>
+<h1 data-number="6"><span class="header-section-number">6</span> Iteration: <code>%DO</code></h1>
 <section id="numeric-loop" class="level2" data-number="6.1">
-<h2 data-number="6.1" class="anchored" data-anchor-id="numeric-loop"><span class="header-section-number">6.1</span> 6.1 Numeric loop</h2>
+<h2 data-number="6.1" class="anchored" data-anchor-id="numeric-loop"><span class="header-section-number">6.1</span> Numeric loop</h2>
 <p>SAS:</p>
 <pre class="sas"><code>%macro run_years(first=, last=);
-%do year = &amp;first %to &amp;last;
-%put Processing &amp;year;
-%end;
+
+  %do year = &amp;first %to &amp;last;
+    %put Processing &amp;year;
+  %end;
+  
 %mend;
 
 %run_years(first=2020, last=2025)</code></pre>
@@ -611,7 +617,7 @@ run;
 <p>Avoid <code>1:n</code> when <code>n</code> may be zero: in R, <code>1:0</code> is <code>c(1, 0)</code>, not an empty sequence.</p>
 </section>
 <section id="iterating-over-a-list-of-values" class="level2" data-number="6.2">
-<h2 data-number="6.2" class="anchored" data-anchor-id="iterating-over-a-list-of-values"><span class="header-section-number">6.2</span> 6.2 Iterating over a list of values</h2>
+<h2 data-number="6.2" class="anchored" data-anchor-id="iterating-over-a-list-of-values"><span class="header-section-number">6.2</span> Iterating over a list of values</h2>
 <p>SAS often creates one step per value:</p>
 <pre class="sas"><code>%let vars = age income education;</code></pre>
 <p>R:</p>
@@ -619,7 +625,7 @@ run;
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>vars <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"age"</span>, <span class="st">"income"</span>, <span class="st">"education"</span>)</span>
 <span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (variable <span class="cf">in</span> vars) {</span>
-<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a><span class="fu">message</span>(<span class="st">"Processing variable: "</span>, variable)</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">message</span>(<span class="st">"Processing variable: "</span>, variable)</span>
 <span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stderr">
 <pre><code>Processing variable: age</code></pre>
@@ -635,7 +641,7 @@ run;
 </section>
 </section>
 <section id="sysfunc-eval-and-sysevalf" class="level1" data-number="7">
-<h1 data-number="7"><span class="header-section-number">7</span> 7. <code>%SYSFUNC</code>, <code>%EVAL</code>, and <code>%SYSEVALF</code></h1>
+<h1 data-number="7"><span class="header-section-number">7</span> <code>%SYSFUNC</code>, <code>%EVAL</code>, and <code>%SYSEVALF</code></h1>
 <p>SAS:</p>
 <pre class="sas"><code>%let next_year = %sysfunc(sum(&amp;year, 1));
 %let is_valid = %eval(&amp;year &gt;= 2020);</code></pre>
@@ -657,12 +663,14 @@ run;
 <p>R normally evaluates arithmetic and logical expressions directly. <code>eval()</code> is not the routine equivalent of <code>%EVAL</code>; it evaluates an R language object in an environment and should only be used when dynamic evaluation is genuinely required.</p>
 </section>
 <section id="local-and-global-scope-local-global" class="level1" data-number="8">
-<h1 data-number="8"><span class="header-section-number">8</span> 8. Local and global scope: <code>%LOCAL</code> / <code>%GLOBAL</code></h1>
+<h1 data-number="8"><span class="header-section-number">8</span> Local and global scope: <code>%LOCAL</code> / <code>%GLOBAL</code></h1>
 <p>SAS:</p>
 <pre class="sas"><code>%macro example();
-%local temp;
-%let temp = 10;
-%put &amp;=temp;
+
+  %local temp;
+  %let temp = 10;
+  %put &amp;=temp;
+  
 %mend;</code></pre>
 <p>R:</p>
 <div class="cell">
@@ -692,20 +700,24 @@ run;
 <p><code>&lt;&lt;-</code> searches parent environments and updates an existing binding; it is not a general-purpose replacement for <code>%GLOBAL</code>.</p>
 </section>
 <section id="indirect-references-namei" class="level1" data-number="9">
-<h1 data-number="9"><span class="header-section-number">9</span> 9. Indirect references: <code>&amp;&amp;name&amp;i</code></h1>
+<h1 data-number="9"><span class="header-section-number">9</span> Indirect references: <code>&amp;&amp;name&amp;i</code></h1>
 <p>SAS macro code may use indirect resolution:</p>
 <pre class="sas"><code>%let name1 = age;
 %let name2 = income;
 
+%MACRO print_names;
+
 %do i = 1 %to 2;
-%put &amp;&amp;name&amp;i;
-%end;</code></pre>
+  %put &amp;&amp;name&amp;i;
+%end;
+
+%MEND;</code></pre>
 <p>In R, use a vector or list rather than constructing variable names:</p>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb43"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a>variable_names <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"age"</span>, <span class="st">"income"</span>)</span>
 <span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (variable <span class="cf">in</span> variable_names) {</span>
-<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(variable)</span>
+<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">print</span>(variable)</span>
 <span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>[1] "age"
@@ -732,12 +744,12 @@ run;
 <p>Avoid patterns such as <code>get(paste0("data", i))</code> when a list would express the structure directly.</p>
 </section>
 <section id="call-symputx-symget-and-proc-sql-into" class="level1" data-number="10">
-<h1 data-number="10"><span class="header-section-number">10</span> 10. <code>CALL SYMPUTX</code>, <code>SYMGET</code>, and <code>PROC SQL INTO</code></h1>
+<h1 data-number="10"><span class="header-section-number">10</span> <code>CALL SYMPUTX</code>, <code>SYMGET</code>, and <code>PROC SQL INTO</code></h1>
 <section id="sas-2" class="level2" data-number="10.1">
 <h2 data-number="10.1" class="anchored" data-anchor-id="sas-2"><span class="header-section-number">10.1</span> SAS</h2>
 <pre class="sas"><code>data _null_;
-set work.people end=last;
-if last then call symputx("n_obs", _n_);
+  set work.people end=last;
+  if last then call symputx("n_obs", _n_);
 run;
 
 %put Number of observations: &amp;n_obs;</code></pre>
@@ -753,8 +765,8 @@ run;
 </div>
 <p>SAS SQL:</p>
 <pre class="sas"><code>proc sql noprint;
-select count(*) into :n_obs
-from work.people;
+  select count(*) into :n_obs
+  from work.people;
 quit;</code></pre>
 <p>R:</p>
 <div class="cell">
@@ -768,7 +780,7 @@ quit;</code></pre>
 </section>
 </section>
 <section id="include-and-modular-code" class="level1" data-number="11">
-<h1 data-number="11"><span class="header-section-number">11</span> 11. <code>%INCLUDE</code> and modular code</h1>
+<h1 data-number="11"><span class="header-section-number">11</span> <code>%INCLUDE</code> and modular code</h1>
 <p>SAS:</p>
 <pre class="sas"><code>%include "/project/programs/common.sas";</code></pre>
 <p>R:</p>
@@ -786,7 +798,7 @@ quit;</code></pre>
 <p>For larger R projects, consider package structure, explicit function exports, and project-relative paths (for example, with the <code>here</code> package) instead of relying on the current working directory.</p>
 </section>
 <section id="text-generation-versus-data-driven-programming" class="level1" data-number="12">
-<h1 data-number="12"><span class="header-section-number">12</span> 12. Text generation versus data-driven programming</h1>
+<h1 data-number="12"><span class="header-section-number">12</span> Text generation versus data-driven programming</h1>
 <p>A macro may generate a different variable name or procedure for each iteration. In R, first consider whether the operation can be expressed as:</p>
 <ul>
 <li>a function applied to a vector of names;</li>
@@ -798,12 +810,17 @@ quit;</code></pre>
 <p>Example: process several variables.</p>
 <p>SAS:</p>
 <pre class="sas"><code>%macro describe(data=, vars=);
-%do i = 1 %to %sysfunc(countw(&amp;vars));
-%let var = %scan(&amp;vars, &amp;i);
-proc means data=&amp;data;
-var &amp;var;
-run;
-%end;
+
+  %do i = 1 %to %sysfunc(countw(&amp;vars));
+  
+    %let var = %scan(&amp;vars, &amp;i);
+    
+    proc means data=&amp;data;
+      var &amp;var;
+    run;
+    
+  %end;
+  
 %mend;</code></pre>
 <p>R:</p>
 <div class="cell">
@@ -836,7 +853,7 @@ $income
 <p>This returns structured results rather than producing repeated source text.</p>
 </section>
 <section id="sas-macro-quoting-and-r-strings" class="level1" data-number="13">
-<h1 data-number="13"><span class="header-section-number">13</span> 13. SAS macro quoting and R strings</h1>
+<h1 data-number="13"><span class="header-section-number">13</span> SAS macro quoting and R strings</h1>
 <p>SAS macro quoting functions (<code>%STR</code>, <code>%NRSTR</code>, <code>%BQUOTE</code>, <code>%NRBQUOTE</code>, <code>%SUPERQ</code>, <code>%UNQUOTE</code>) protect characters from macro interpretation. They do not have one-to-one equivalents in R.</p>
 <p>In R, strings are data:</p>
 <div class="cell">
@@ -850,12 +867,12 @@ $income
 <p>Prefer constructing language objects with <code>call()</code>, <code>as.name()</code>, or formula interfaces only when necessary. Avoid concatenating untrusted values into executable source code.</p>
 </section>
 <section id="when-the-r-macro-package-may-be-relevant" class="level1" data-number="14">
-<h1 data-number="14"><span class="header-section-number">14</span> 14. When the R <code>macro</code> package may be relevant</h1>
+<h1 data-number="14"><span class="header-section-number">14</span> When the R <code>macro</code> package may be relevant</h1>
 <p>The R package <code>macro</code> offers a SAS-inspired macro preprocessor. It can be useful when: - a team needs to preserve macro-like syntax during a staged migration; - a large codebase contains extensive macro-driven source generation; - a compatibility layer is deliberately part of the migration plan.</p>
 <p>It should not be assumed to provide complete SAS macro processor compatibility. Validate syntax and behavior against the package’s current documentation and test representative edge cases. For new R development, native functions and ordinary R control flow are generally easier to test, debug, and maintain.</p>
 </section>
 <section id="migration-checklist" class="level1" data-number="15">
-<h1 data-number="15"><span class="header-section-number">15</span> 15. Migration checklist</h1>
+<h1 data-number="15"><span class="header-section-number">15</span> Migration checklist</h1>
 <ol type="1">
 <li><strong>Classify each macro.</strong> Is it a parameterized procedure, a loop, a conditional branch, or a source-code generator?</li>
 <li><strong>Replace macro parameters with function arguments.</strong></li>
@@ -870,7 +887,7 @@ $income
 </ol>
 </section>
 <section id="compact-reference-sas-macro-to-r" class="level1" data-number="16">
-<h1 data-number="16"><span class="header-section-number">16</span> 16. Compact reference: SAS macro to R</h1>
+<h1 data-number="16"><span class="header-section-number">16</span> Compact reference: SAS macro to R</h1>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 50%">
@@ -963,7 +980,7 @@ $income
 </table>
 </section>
 <section id="further-reading" class="level1" data-number="17">
-<h1 data-number="17"><span class="header-section-number">17</span> 17. Further reading</h1>
+<h1 data-number="17"><span class="header-section-number">17</span> Further reading</h1>
 <ul>
 <li>SAS documentation: <em>SAS Macro Language</em> and <em>Macro Language Reference</em>.</li>
 <li>R documentation: <em>An Introduction to R</em>, especially functions, control flow, and environments.</li>
@@ -1018,7 +1035,7 @@ $income
 <p>The assignment <code>answer &lt;- double_value(10)</code> stores the returned value in the environment where the assignment is evaluated. The local variable <code>result</code> does not become global.</p>
 </section>
 <section id="functions-that-create-one-data-frame" class="level1" data-number="19">
-<h1 data-number="19"><span class="header-section-number">19</span> 19. Functions that create one data frame</h1>
+<h1 data-number="19"><span class="header-section-number">19</span> Functions that create one data frame</h1>
 <p>A function can create a data frame locally and return it to the caller.</p>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb70"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb70-1"><a href="#cb70-1" aria-hidden="true" tabindex="-1"></a>make_population_summary <span class="ot">&lt;-</span> <span class="cf">function</span>(data) {</span>
@@ -1075,7 +1092,7 @@ $income
 </div>
 </section>
 <section id="functions-that-create-multiple-data-frames" class="level1" data-number="20">
-<h1 data-number="20"><span class="header-section-number">20</span> 20. Functions that create multiple data frames</h1>
+<h1 data-number="20"><span class="header-section-number">20</span> Functions that create multiple data frames</h1>
 <p>When a function needs to return two or more datasets, return a <strong>named list</strong>. Lists can contain data frames of different sizes and shapes.</p>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb76"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb76-1"><a href="#cb76-1" aria-hidden="true" tabindex="-1"></a>split_population <span class="ot">&lt;-</span> <span class="cf">function</span>(data) {</span>
@@ -1102,7 +1119,7 @@ $income
 </div>
 <p>The function returns one object—the list—which contains both data frames. The caller accesses each dataset by name.</p>
 <section id="returning-several-derived-datasets" class="level2" data-number="20.1">
-<h2 data-number="20.1" class="anchored" data-anchor-id="returning-several-derived-datasets"><span class="header-section-number">20.1</span> 20.1 Returning several derived datasets</h2>
+<h2 data-number="20.1" class="anchored" data-anchor-id="returning-several-derived-datasets"><span class="header-section-number">20.1</span> Returning several derived datasets</h2>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb80"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb80-1"><a href="#cb80-1" aria-hidden="true" tabindex="-1"></a>build_outputs <span class="ot">&lt;-</span> <span class="cf">function</span>(data) {</span>
 <span id="cb80-2"><a href="#cb80-2" aria-hidden="true" tabindex="-1"></a>  cleaned <span class="ot">&lt;-</span> data[<span class="sc">!</span><span class="fu">is.na</span>(data<span class="sc">$</span>id), , drop <span class="ot">=</span> <span class="cn">FALSE</span>]</span>
@@ -1138,12 +1155,12 @@ $income
 </section>
 </section>
 <section id="sas-data-steps-and-procedures-that-produce-datasets" class="level1" data-number="21">
-<h1 data-number="21"><span class="header-section-number">21</span> 21. SAS DATA steps and procedures that produce datasets</h1>
+<h1 data-number="21"><span class="header-section-number">21</span> SAS DATA steps and procedures that produce datasets</h1>
 <p>SAS programs often create named output datasets as a side effect:</p>
 <pre class="sas"><code>data work.adults work.minors;
-set work.people;
-if age &gt;= 18 then output work.adults;
-else output work.minors;
+  set work.people;
+  if age &gt;= 18 then output work.adults;
+  else output work.minors;
 run;</code></pre>
 <p>An idiomatic R function normally returns its outputs explicitly:</p>
 <div class="cell">
@@ -1168,7 +1185,7 @@ run;</code></pre>
 </div>
 <p>SAS names output datasets in the DATA step. The R function returns a list of objects, and the caller chooses the names to which they are assigned. This makes the function reusable with different input and output names.</p>
 <section id="if-the-function-should-save-datasets-to-disk" class="level2" data-number="21.1">
-<h2 data-number="21.1" class="anchored" data-anchor-id="if-the-function-should-save-datasets-to-disk"><span class="header-section-number">21.1</span> 21.1 If the function should save datasets to disk</h2>
+<h2 data-number="21.1" class="anchored" data-anchor-id="if-the-function-should-save-datasets-to-disk"><span class="header-section-number">21.1</span> If the function should save datasets to disk</h2>
 <p>Creating an in-memory data frame and writing it to a file are different responsibilities. If persistence is required, make it explicit:</p>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb87"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb87-1"><a href="#cb87-1" aria-hidden="true" tabindex="-1"></a>write_population_outputs <span class="ot">&lt;-</span> <span class="cf">function</span>(data, output_dir) {</span>
@@ -1198,7 +1215,7 @@ run;</code></pre>
 </section>
 </section>
 <section id="mapping-sas-output-patterns-to-r-return-patterns" class="level1" data-number="22">
-<h1 data-number="22"><span class="header-section-number">22</span> 22. Mapping SAS output patterns to R return patterns</h1>
+<h1 data-number="22"><span class="header-section-number">22</span> Mapping SAS output patterns to R return patterns</h1>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 50%">

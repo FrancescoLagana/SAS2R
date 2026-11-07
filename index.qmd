@@ -1,20 +1,34 @@
 ---
-title: "SAS2R – Documentation"
+title: "Migration SAS - R <br> equivalence pour la gestion de grandes bases de données longitudinales"
 format:
   html:
     toc: false
 ---
 
-Ensemble de tutoriels et de guides pour la migration de code SAS vers R, en particulier pour les utilisateurs de SAS qui souhaitent apprendre R et ses packages, notamment data.table.
-*Focus*: grandes bases de données longitudinales
+Ensemble de tutoriels et de guides pour la migration de code SAS vers R, en particulier pour les utilisateurs de SAS qui souhaitent apprendre R et ses packages, notamment data.table. \
+**Focus**: grandes bases de données longitudinales
 
-- [data.table base synthax equivalence](sas_to_datatable_migration_exe.html)
-- [data.table and applications of `lapply`](data_table_understand_lapply.html)
+Basics 
+
+- [data.table base synthax and SAS equivalence](sas_to_datatable_migration_exe.html) 
+- [data.table and applications of `apply` family functions](data_table_understand_lapply.html) 
+
+Apply formats 
+
 - [SAS to R formats](sas_r_formats.html)
 - [Tabulate in R and apply formats from list-metadata catalogue](data_table_tab_with_metadata_from_list.html)
-- [Tabulate in R and apply formats from dataset structured metadata catalogue](data_table_tab_with_metadata_from_list.html)
+- [Tabulate in R and apply formats from `data.frame` structured metadata catalogue](data_table_tab_with_metadata_from_list.html)
+
+Recoding variables 
+
 - [Recode factor variables: equivalences SAS and R](sas_r_factor_recode.html)
+
+Data management 
+
 - [SAS to R: management of longitudinal microdata](sas_to_r_longitudinal_microdata_exe_v3.html)
 - [Joins in data.table](data_table_joins_longitudinal.html)
+
+Programming 
+
 - [SAS to R functions](sas_macro_programming_to_r_equivalence_exe.html)
 
