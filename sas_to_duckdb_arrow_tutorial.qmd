@@ -1,0 +1,1566 @@
+---
+title: "SAS → R Migration with DuckDB and Arrow"
+subtitle: "Practical guide: DATA STEP, PROC SQL, PROC FORMAT, joins, aggregations and Parquet"
+author: "Working notes"
+lang: en
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-fold: false
+  docx:
+    toc: true
+    number-sections: true
+editor:
+  markdown:
+    wrap: 115
+---
+
+# Introduction
+
+This document reworks the original `data.table` migration tutorial around **DuckDB** and **Apache Arrow**. For each
+operation, the two approaches are presented in a Quarto tabset:
+
+-   **DuckDB**: SQL executed from R through `DBI::dbGetQuery()` or `DBI::dbExecute()`.
+-   **Arrow**: lazy queries on Parquet datasets through `arrow::open_dataset()` and `dplyr`.
+
+The examples use a small synthetic dataset so that every section is reproducible. The same principles apply to
+larger administrative and longitudinal registers, where it is important to project only the required columns,
+filter early, avoid unnecessary materialisation, and write intermediate results to Parquet.
+
+## 0.1 Packages and shared example data
+
+DuckDB and Arrow are different execution engines. DuckDB executes SQL and can query Parquet directly; Arrow
+provides columnar data structures and a lazy query interface for supported operations. `dplyr` is an interface, not
+an execution engine: the backend determines which operations are supported and where they run.
+
+```{r}
+#| label: setup
+library(DBI)
+library(duckdb)
+library(arrow)
+library(dplyr)
+
+# A temporary directory is used so that the tutorial is self-contained.
+data_dir <- file.path(tempdir(), "sas_migration_parquet")
+dir.create(data_dir, recursive = TRUE, showWarnings = FALSE)
+
+# DuckDB in-memory connection.
+con <- dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+
+# Small synthetic source data.
+DT_base <- tibble::tibble(
+  id      = rep(1:4, each = 3),
+  anno    = rep(2023:2025, times = 4),
+  cantone = rep(c("TI", "ZH", "BE", "GE"), each = 3),
+  sesso   = rep(c(1L, 2L, 1L, 2L), each = 3),
+  eta     = c(17, 25, 70, 30, 45, 66, 12, 50, 80, 40, 64, 65),
+  stato   = rep(c("A", "B", "A", "B"), each = 3),
+  importo = c(100, 200, NA, 150, 250, 300, 50, 75, 125, 90, NA, 400),
+  valore  = c(10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120)
+) |>
+  mutate(data_ref = as.Date("2025-06-15") + anno - 2025)
+
+# Write once to Parquet. Arrow reads this dataset lazily.
+parquet_file <- file.path(data_dir, "base.parquet")
+arrow::write_parquet(DT_base, parquet_file)
+ds_base <- arrow::open_dataset(parquet_file, format = "parquet")
+
+# Register the same source in DuckDB.
+dbWriteTable(con, "DT_base", DT_base, overwrite = TRUE)
+
+# Lookup and transaction tables used in join examples.
+anagrafica <- tibble::tibble(
+  id = 1:4,
+  nome = c("Anna", "Bruno", "Carla", "Dario"),
+  regione = c("Sud", "Nord", "Centro", "Nord")
+)
+transazioni <- tibble::tibble(
+  id_trans = c(1L, 2L, 2L, 4L, 5L),
+  anno_ref = c(2023L, 2024L, 2024L, 2025L, 2025L),
+  importo = c(10, 20, 30, 40, 50)
+)
+
+dbWriteTable(con, "anagrafica", anagrafica, overwrite = TRUE)
+dbWriteTable(con, "transazioni", transazioni, overwrite = TRUE)
+
+arrow::write_parquet(anagrafica, file.path(data_dir, "anagrafica.parquet"))
+arrow::write_parquet(transazioni, file.path(data_dir, "transazioni.parquet"))
+ds_anagrafica <- arrow::open_dataset(file.path(data_dir, "anagrafica.parquet"))
+ds_transazioni <- arrow::open_dataset(file.path(data_dir, "transazioni.parquet"))
+```
+
+`DT_base` is the R object used to create the examples. `DT_base` in DuckDB is a registered database table;
+`ds_base` is an Arrow Dataset backed by Parquet. They contain the same rows but have different APIs and execution
+models.
+
+**Important distinction about memory:** `dbGetQuery()` collects the result into an R data frame. `dbExecute()`
+executes a statement without returning a result table. Arrow `collect()` materialises a query in R memory; avoid it
+until the result is small enough or must be passed to an R-only function.
+
+# Selecting rows and columns
+
+## General mental model
+
+| Intent             | DuckDB                      | Arrow        |
+|--------------------|-----------------------------|--------------|
+| Filter rows        | `WHERE`                     | `filter()`   |
+| Select columns     | `SELECT`                    | `select()`   |
+| Group rows         | `GROUP BY`                  | `group_by()` |
+| Calculate columns  | `SELECT expression AS name` | `mutate()`   |
+| Materialise result | `dbGetQuery()`              | `collect()`  |
+
+## Filter rows and select columns
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: filter-select-duckdb
+DBI::dbGetQuery(con, "
+  SELECT id, anno, valore
+  FROM DT_base
+  WHERE stato = 'A'
+    AND anno BETWEEN 2023 AND 2024
+")
+```
+
+## Arrow
+
+```{r}
+#| label: filter-select-arrow
+ds_base |>
+  filter(stato == "A", anno >= 2023, anno <= 2024) |>
+  select(id, anno, valore) |>
+  collect()
+```
+:::
+
+Both examples select the same rows and columns. The Arrow pipeline remains lazy until `collect()` is called. DuckDB
+executes the query in its engine; the result of `dbGetQuery()` is collected in R.
+
+## Dynamic column selection
+
+A character vector of column names is often created programmatically, for example from a configuration file.
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: dynamic-select-duckdb
+cols <- c("id", "anno", "valore")
+
+# Quote identifiers safely. Do not paste untrusted names directly into SQL.
+quoted_cols <- as.character(DBI::dbQuoteIdentifier(con, cols))
+sql <- paste("SELECT", paste(quoted_cols, collapse = ", "),
+             "FROM DT_base")
+DBI::dbGetQuery(con, sql)
+```
+
+## Arrow
+
+```{r}
+#| label: dynamic-select-arrow
+cols <- c("id", "anno", "valore")
+
+ds_base |>
+  select(all_of(cols)) |>
+  collect()
+```
+:::
+
+For Arrow, `all_of()` selects exactly the names supplied and errors if one is absent; `any_of()` ignores missing
+names. In DuckDB, identifiers must be quoted as identifiers, not as string literals. Dynamic SQL should use
+`dbQuoteIdentifier()` for names and parameters for values.
+
+## Excluding columns
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: drop-select-duckdb
+DBI::dbGetQuery(con, "
+  SELECT * EXCLUDE (stato)
+  FROM DT_base
+")
+```
+
+## Arrow
+
+```{r}
+#| label: drop-select-arrow
+ds_base |>
+  select(-stato) |>
+  collect()
+```
+:::
+
+DuckDB supports `SELECT * EXCLUDE (...)`. Arrow uses the familiar dplyr negative selection. Both return a query
+result; neither changes the source Parquet file or the original source table.
+
+# Creating and modifying variables
+
+In a database, `UPDATE` changes a stored table, while a `SELECT` expression creates a derived result. For
+reproducible analytical pipelines, it is often preferable to create a new table or Parquet dataset rather than
+mutate the source in place.
+
+## Create several variables
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: mutate-duckdb
+DBI::dbGetQuery(con, "
+  SELECT *,
+         valore / NULLIF(importo, 0) AS rapporto,
+         importo + valore AS totale,
+         YEAR(data_ref) AS anno_ref,
+         CASE WHEN anno >= 2024 THEN 'A' ELSE 'B' END AS stato_nuovo
+  FROM DT_base
+")
+```
+
+## Arrow
+
+```{r}
+#| label: mutate-arrow
+ds_base |>
+  mutate(
+    rapporto = valore / if_else(importo == 0, NA_real_, importo),
+    totale = importo + valore,
+    anno_ref = year(data_ref),
+    stato_nuovo = if_else(anno >= 2024, "A", "B")
+  ) |>
+  collect()
+```
+:::
+
+`NULLIF(importo, 0)` avoids division by zero in SQL. Missing-value and division-by-zero semantics should always be
+checked when porting SAS logic. `YEAR()` extracts the year from a date in DuckDB; Arrow supports common date
+expressions, but the exact set of supported functions depends on the Arrow version.
+
+## Update only selected rows
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: update-subset-duckdb
+DBI::dbExecute(con, "
+  CREATE OR REPLACE TABLE employees AS
+  SELECT * FROM (VALUES
+    ('Alice', 'Active', 500),
+    ('Bob', 'On Leave', NULL),
+    ('Charlie', 'Active', 600)
+  ) AS t(name, status, bonus)
+")
+
+DBI::dbExecute(con, "
+  UPDATE employees
+  SET bonus = 0
+  WHERE status = 'On Leave'
+")
+
+DBI::dbGetQuery(con, "SELECT * FROM employees")
+```
+
+## Arrow
+
+```{r}
+#| label: update-subset-arrow
+employees <- tibble::tibble(
+  name = c("Alice", "Bob", "Charlie"),
+  status = c("Active", "On Leave", "Active"),
+  bonus = c(500, NA_real_, 600)
+)
+
+employees |>
+  mutate(bonus = if_else(status == "On Leave", 0, bonus))
+```
+:::
+
+Arrow Dataset operations are designed for querying and writing datasets, not for arbitrary in-place row updates.
+The Arrow example creates a transformed result. To persist it, use `write_dataset()` or `write_parquet()`.
+
+## Multiple derived columns
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: multiple-columns-duckdb
+DBI::dbGetQuery(con, "
+  SELECT id,
+         valore * 2.2 AS valore_convertito,
+         TRUE AS verificato
+  FROM DT_base
+")
+```
+
+## Arrow
+
+```{r}
+#| label: multiple-columns-arrow
+ds_base |>
+  mutate(
+    valore_convertito = valore * 2.2,
+    verificato = TRUE
+  ) |>
+  select(id, valore_convertito, verificato) |>
+  collect()
+```
+:::
+
+## Persisting a transformed dataset
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: persist-duckdb
+DBI::dbExecute(con, "
+  CREATE OR REPLACE TABLE base_derivata AS
+  SELECT id, anno, cantone, valore * 2.2 AS valore_convertito
+  FROM DT_base
+")
+
+# Export the result to Parquet.
+DBI::dbExecute(con, sprintf(
+  "COPY base_derivata TO '%s' (FORMAT PARQUET)",
+  normalizePath(file.path(data_dir, "base_derivata_duckdb.parquet"),
+                winslash = "/", mustWork = FALSE)
+))
+```
+
+## Arrow
+
+```{r}
+#| label: persist-arrow
+ds_base |>
+  mutate(valore_convertito = valore * 2.2) |>
+  select(id, anno, cantone, valore_convertito) |>
+  arrow::write_dataset(
+    file.path(data_dir, "base_derivata_arrow"),
+    format = "parquet",
+    existing_data_behavior = "overwrite"
+  )
+```
+:::
+
+A DuckDB table is a database object; a Parquet file is a portable columnar file. Arrow `write_dataset()` can create
+a directory containing multiple Parquet files. Do not confuse a Parquet dataset directory with a single Parquet
+file.
+
+# Sorting and row order
+
+Relational tables have no guaranteed order unless an `ORDER BY` is specified. This matters for all SAS logic based
+on input order, `BY`, `FIRST.`, `LAST.`, `LAG()` or `RETAIN`.
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: sorting-duckdb
+DBI::dbGetQuery(con, "
+  SELECT id, cantone, anno, valore
+  FROM DT_base
+  ORDER BY cantone, anno
+")
+```
+
+## Arrow
+
+```{r}
+#| label: sorting-arrow
+ds_base |>
+  arrange(cantone, anno) |>
+  select(id, cantone, anno, valore) |>
+  collect()
+```
+:::
+
+Sorting a query result does not imply that a later query will preserve that order. Repeat `ORDER BY` (DuckDB) or
+`arrange()` (Arrow) at the point where order is required.
+
+# Labels and metadata
+
+Neither DuckDB nor Parquet provides a direct, universally preserved equivalent of all SAS variable labels and
+formats. Keep metadata in a separate data dictionary.
+
+```{r}
+#| label: metadata-table
+metadata <- tibble::tibble(
+  variable = c("sesso", "eta"),
+  label = c("Sesso", "Età in anni"),
+  source_type = c("integer", "integer"),
+  format = c("sexfmt", "agefmt")
+)
+metadata
+```
+
+An R attribute attached to a column may be lost when data are written to CSV, databases or transformation
+pipelines. A metadata table is more robust for long-running migration projects.
+
+# Aggregations and tabulations
+
+## Counts and statistics by group
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: aggregation-duckdb
+DBI::dbGetQuery(con, "
+  SELECT cantone,
+         COUNT(*) AS n,
+         AVG(valore) AS media
+  FROM DT_base
+  GROUP BY cantone
+  ORDER BY cantone
+")
+```
+
+## Arrow
+
+```{r}
+#| label: aggregation-arrow
+ds_base |>
+  group_by(cantone) |>
+  summarise(
+    n = n(),
+    media = mean(valore, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  arrange(cantone) |>
+  collect()
+```
+:::
+
+SQL `COUNT(*)` counts rows; SQL `AVG()` ignores NULL values. Arrow's `mean(..., na.rm = TRUE)` explicitly removes
+missing values. Make missing-value rules explicit in both engines.
+
+## Cross-tabulations
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: crosstab-duckdb
+DBI::dbGetQuery(con, "
+  WITH classified AS (
+    SELECT sesso,
+           CASE
+             WHEN eta <= 17 THEN '0-17'
+             WHEN eta <= 64 THEN '18-64'
+             ELSE '65+'
+           END AS classe_eta
+    FROM DT_base
+  )
+  PIVOT (
+    SELECT sesso, classe_eta, COUNT(*) AS n
+    FROM classified
+    GROUP BY sesso, classe_eta
+  )
+  ON classe_eta IN ('0-17', '18-64', '65+')
+  USING SUM(n)
+  GROUP BY sesso
+  ORDER BY sesso
+")
+```
+
+## Arrow
+
+```{r}
+#| label: crosstab-arrow
+ds_base |>
+  mutate(
+    classe_eta = case_when(
+      eta <= 17 ~ "0-17",
+      eta <= 64 ~ "18-64",
+      TRUE ~ "65+"
+    )
+  ) |>
+  count(sesso, classe_eta, name = "n") |>
+  collect() |>
+  tidyr::pivot_wider(
+    names_from = classe_eta,
+    values_from = n,
+    values_fill = 0
+  )
+  
+```
+:::
+
+The Arrow example uses `tidyr::pivot_wider()` after aggregation. Support for pivot operations can vary with the
+Arrow/dplyr versions; if a particular Arrow version cannot translate the operation lazily, collect the already
+aggregated small result before pivoting. DuckDB's `PIVOT` syntax is convenient for a known set of categories.
+
+## Percentages within groups and overall
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: percentages-duckdb
+DBI::dbGetQuery(con, "
+  WITH counts AS (
+    SELECT sesso, classe_eta, COUNT(*) AS n
+    FROM (
+      SELECT sesso,
+             CASE WHEN eta <= 17 THEN '0-17'
+                  WHEN eta <= 64 THEN '18-64'
+                  ELSE '65+' END AS classe_eta
+      FROM DT_base
+    )
+    GROUP BY sesso, classe_eta
+  )
+  SELECT *,
+         100.0 * n / SUM(n) OVER (PARTITION BY sesso) AS perc_sesso,
+         100.0 * n / SUM(n) OVER () AS perc_totale
+  FROM counts
+  ORDER BY sesso, classe_eta
+")
+```
+
+## Arrow
+
+```{r}
+#| label: percentages-arrow
+counts <- ds_base |>
+  mutate(
+    classe_eta = case_when(
+      eta <= 17 ~ "0-17",
+      eta <= 64 ~ "18-64",
+      TRUE ~ "65+"
+    )
+  ) |>
+  count(sesso, classe_eta, name = "n") |>
+  collect()
+
+counts |>
+  group_by(sesso) |>
+  mutate(perc_sesso = 100 * n / sum(n)) |>
+  ungroup() |>
+  mutate(perc_totale = 100 * n / sum(n))
+```
+:::
+
+Always define the denominator: overall total, row, column, or subpopulation. Window functions in DuckDB and grouped
+mutations in Arrow make the denominator explicit.
+
+## PROC TABULATE-style summary
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: tabulate-duckdb
+DBI::dbGetQuery(con, "
+  SELECT cantone, sesso,
+         CASE WHEN eta <= 17 THEN '0-17'
+              WHEN eta <= 64 THEN '18-64'
+              ELSE '65+' END AS classe_eta,
+         COUNT(*) AS n,
+         AVG(valore) AS media,
+         SUM(valore) AS somma
+  FROM DT_base
+  GROUP BY cantone, sesso, classe_eta
+  ORDER BY cantone, sesso, classe_eta
+")
+```
+
+## Arrow
+
+```{r}
+#| label: tabulate-arrow
+ds_base |>
+  mutate(
+    classe_eta = case_when(
+      eta <= 17 ~ "0-17",
+      eta <= 64 ~ "18-64",
+      TRUE ~ "65+"
+    )
+  ) |>
+  group_by(cantone, sesso, classe_eta) |>
+  summarise(
+    n = n(),
+    media = mean(valore, na.rm = TRUE),
+    somma = sum(valore, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  arrange(cantone, sesso, classe_eta) |>
+  collect()
+```
+:::
+
+Separate calculation from presentation. Use `gt`, `flextable` or another presentation package after collecting the
+summary table, not to process the full source dataset.
+
+# Joins
+
+Before joining, check key uniqueness and cardinality. A one-to-many or many-to-many join can multiply rows in both
+SQL and Arrow just as it can in R.
+
+## Left join
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: left-join-duckdb
+DBI::dbGetQuery(con, "
+  SELECT t.*, a.nome, a.regione
+  FROM transazioni AS t
+  LEFT JOIN anagrafica AS a
+    ON t.id_trans = a.id
+  ORDER BY t.id_trans
+")
+```
+
+## Arrow
+
+```{r}
+#| label: left-join-arrow
+ds_transazioni |>
+  left_join(ds_anagrafica, by = c("id_trans" = "id")) |>
+  arrange(id_trans) |>
+  collect()
+```
+:::
+
+The left table (`transazioni`) determines which rows are retained. In SQL, the join direction is explicit. In
+dplyr, `left_join(x, y)` preserves rows from `x`.
+
+## Inner, full and anti joins
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: join-types-duckdb
+inner <- dbGetQuery(con, "
+  SELECT t.*, a.nome
+  FROM transazioni t
+  INNER JOIN anagrafica a ON t.id_trans = a.id
+")
+
+full <- dbGetQuery(con, "
+  SELECT t.*, a.nome
+  FROM transazioni t
+  FULL OUTER JOIN anagrafica a ON t.id_trans = a.id
+")
+
+anti <- dbGetQuery(con, "
+  SELECT a.*
+  FROM anagrafica a
+  WHERE NOT EXISTS (
+    SELECT 1 FROM transazioni t WHERE t.id_trans = a.id
+  )
+")
+inner
+full
+anti
+```
+
+## Arrow
+
+```{r}
+#| label: join-types-arrow
+inner <- ds_transazioni |>
+  inner_join(ds_anagrafica, by = c("id_trans" = "id")) |>
+  collect()
+
+full <- ds_transazioni |>
+  full_join(ds_anagrafica, by = c("id_trans" = "id")) |>
+  collect()
+
+anti <- ds_anagrafica |>
+  anti_join(ds_transazioni, by = c("id" = "id_trans")) |>
+  collect()
+
+inner
+full
+anti
+```
+:::
+
+Arrow join support and execution strategy depend on the installed version and dataset type. For very large joins,
+check the Arrow documentation and memory requirements; DuckDB is often a practical choice for disk-backed joins.
+
+## Join on multiple columns
+
+The example uses different key names to show the explicit mapping.
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: multi-join-duckdb
+DBI::dbGetQuery(con, "
+  SELECT t.*, a.nome, a.regione
+  FROM transazioni t
+  LEFT JOIN anagrafica a
+    ON t.id_trans = a.id
+")
+```
+
+## Arrow
+
+```{r}
+#| label: multi-join-arrow
+ds_transazioni |>
+  left_join(ds_anagrafica, by = c("id_trans" = "id")) |>
+  collect()
+```
+:::
+
+For a composite key, add all key predicates in SQL (`ON x.k1 = y.k1 AND x.k2 = y.k2`) or supply a named vector such
+as `by = c("key_x1" = "key_y1", "key_x2" = "key_y2")` in dplyr.
+
+## Update join: enrich an existing table
+
+An update join changes a stored table. It is not the same as returning a joined query result.
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: update-join-duckdb
+dbWriteTable(con, "tabella_ref",
+             tibble::tibble(id = c(1L, 3L), classe = c("X", "Y")),
+             overwrite = TRUE)
+
+dbExecute(con, "
+  CREATE OR REPLACE TABLE anagrafica_upd AS
+  SELECT a.*,
+         r.classe
+  FROM anagrafica a
+  LEFT JOIN tabella_ref r USING (id)
+")
+
+dbGetQuery(con, "SELECT * FROM anagrafica_upd ORDER BY id")
+```
+
+## Arrow
+
+```{r}
+#| label: update-join-arrow
+tabella_ref <- tibble::tibble(
+  id = c(1L, 3L),
+  classe = c("X", "Y")
+)
+
+ref_file <- file.path(data_dir, "tabella_ref.parquet")
+arrow::write_parquet(tabella_ref, ref_file)
+
+ds_ref <- arrow::open_dataset(ref_file)
+
+ds_anagrafica |>
+  left_join(ds_ref, by = "id") |>
+  arrange(id) |>
+  collect()
+```
+:::
+
+Arrow does not provide a general in-place `UPDATE JOIN` on a Parquet Dataset. The idiom is to create a new query
+result and write it as a new dataset. DuckDB supports table updates, but a join-based `CREATE TABLE AS SELECT` is
+often clearer and easier to reproduce.
+
+Check lookup cardinality before the join:
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: cardinality-duckdb
+dbWriteTable(con, "tabella_ref_multi",
+             tibble::tibble(id = c(1L, 1L, 3L), classe = c("X", "Z", "Y")),
+             overwrite = TRUE)
+dbGetQuery(con, "
+  SELECT id, COUNT(*) AS n
+  FROM tabella_ref_multi
+  GROUP BY id
+  HAVING COUNT(*) > 1
+")
+```
+
+## Arrow
+
+```{r}
+#| label: cardinality-arrow
+tabella_ref_multi <- tibble::tibble(
+  id = c(1L, 1L, 3L),
+  classe = c("X", "Z", "Y")
+)
+
+tabella_ref_multi |>
+  count(id, name = "n") |>
+  filter(n > 1)
+```
+:::
+
+# SAS DATA STEP: state across observations
+
+SAS `RETAIN`, `FIRST.`, `LAST.` and `LAG()` depend on observation order and state. SQL tables and Parquet datasets
+are unordered unless an ordering is explicitly specified. Always define a deterministic order, including a
+tie-breaker when dates or sequence variables are not unique.
+
+## First and last record within a group
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: first-last-duckdb
+DBI::dbGetQuery(con, "
+  SELECT *
+  FROM (
+    SELECT *,
+           ROW_NUMBER() OVER (
+             PARTITION BY id ORDER BY anno
+           ) AS row_first,
+           ROW_NUMBER() OVER (
+             PARTITION BY id ORDER BY anno DESC
+           ) AS row_last
+    FROM DT_base
+  )
+  WHERE row_first = 1 OR row_last = 1
+  ORDER BY id, anno
+")
+```
+
+## Arrow
+
+```{r}
+#| label: first-last-arrow
+ds_base |>
+  arrange(id, anno) |>
+  collect() |>
+  group_by(id) |>
+  filter(row_number() == 1L | row_number() == n()) |>
+  ungroup()
+```
+:::
+
+If multiple records share the same `anno`, the ordering is not deterministic. Add a unique sequence variable to
+`ORDER BY`/`arrange()` when the business rule requires a unique first or last record.
+
+## Carry last non-missing value forward (LOCF)
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: locf-duckdb
+DBI::dbGetQuery(con, "
+  SELECT id, anno, importo,
+         LAST_VALUE(importo IGNORE NULLS) OVER (
+           PARTITION BY id
+           ORDER BY anno
+           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+         ) AS valore_riportato
+  FROM DT_base
+  ORDER BY id, anno
+")
+```
+
+## Arrow
+
+```{r}
+#| label: locf-arrow
+# Arrow Dataset does not expose a universally supported lazy LOCF operation.
+# Filter/project first, then collect only the columns needed for this stateful step.
+ds_base |>
+  select(id, anno, importo) |>
+  collect() |>
+  arrange(id, anno) |>
+  group_by(id) |>
+  tidyr::fill(importo, .direction = "down") |>
+  ungroup() |>
+  rename(valore_riportato = importo)
+```
+:::
+
+LOCF is order-dependent. Arrow's support for forward filling in a lazy Dataset query can vary; if the installed
+version cannot translate the operation, collect only the necessary columns after filtering, or use DuckDB's window
+function. For character values, test the exact Arrow version and type.
+
+## 7.3 Cumulative sum within a group
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: cumsum-duckdb
+DBI::dbGetQuery(con, "
+  SELECT id, anno, importo,
+         SUM(COALESCE(importo, 0)) OVER (
+           PARTITION BY id
+           ORDER BY anno
+           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+         ) AS cumulato
+  FROM DT_base
+  ORDER BY id, anno
+")
+```
+
+## Arrow
+
+```{r}
+#| label: cumsum-arrow
+ds_base |>
+  select(id, anno, importo) |>
+  arrange(id, anno) |>
+  collect() |>
+  group_by(id) |>
+  mutate(cumulato = cumsum(coalesce(importo, 0))) |>
+  ungroup()
+```
+:::
+
+Replacing missing values with zero must match the original SAS program's semantics. A cumulative sum with missing
+values treated as zero is not necessarily equivalent to every SAS expression.
+
+## Counter within a group
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: counter-duckdb
+DBI::dbGetQuery(con, "
+  SELECT id, anno,
+         ROW_NUMBER() OVER (PARTITION BY id ORDER BY anno) AS progressivo
+  FROM DT_base
+  ORDER BY id, anno
+")
+```
+
+## Arrow
+
+```{r}
+#| label: counter-arrow
+ds_base |>
+  select(id, anno) |>
+  arrange(id, anno) |>
+  collect() |>
+  group_by(id) |>
+  mutate(progressivo = row_number()) |>
+  ungroup()
+```
+:::
+
+## Previous value
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: lag-duckdb
+DBI::dbGetQuery(con, "
+  SELECT id, anno, importo,
+         LAG(importo) OVER (
+           PARTITION BY id ORDER BY anno
+         ) AS valore_precedente
+  FROM DT_base
+  ORDER BY id, anno
+")
+```
+
+## Arrow
+
+```{r}
+#| label: lag-arrow
+ds_base |>
+  select(id, anno, importo) |>
+  arrange(id, anno) |>
+  collect() |>
+  group_by(id) |>
+  mutate(valore_precedente = lag(importo)) |>
+  ungroup()
+```
+:::
+
+SQL `LAG()` and dplyr `lag()` are positional within the specified order. SAS `LAG()` uses a queue that advances
+when the function is executed; conditional calls can therefore differ from a simple SQL or dplyr lag.
+
+## Complex conditional state
+
+For state machines with several retained variables and conditional transitions, first define the ordering and
+state-transition rules precisely. SQL window functions are suitable for many cumulative and previous-row problems.
+More complex recursive logic may require a recursive CTE, a staged pipeline, or a dedicated R function. Arrow's
+Dataset API is not intended as a general sequential row-by-row execution engine.
+
+# PROC SQL equivalents
+
+## SELECT, WHERE and ORDER BY
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: select-where-order-duckdb
+DBI::dbGetQuery(con, "
+  SELECT id, valore
+  FROM DT_base
+  WHERE anno = 2025
+  ORDER BY valore DESC
+")
+```
+
+## Arrow
+
+```{r}
+#| label: select-where-order-arrow
+ds_base |>
+  filter(anno == 2025) |>
+  select(id, valore) |>
+  arrange(desc(valore)) |>
+  collect()
+```
+:::
+
+## GROUP BY and HAVING
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: having-duckdb
+DBI::dbGetQuery(con, "
+  SELECT cantone, SUM(valore) AS totale
+  FROM DT_base
+  GROUP BY cantone
+  HAVING SUM(valore) > 100
+")
+```
+
+## Arrow
+
+```{r}
+#| label: having-arrow
+ds_base |>
+  group_by(cantone) |>
+  summarise(totale = sum(valore, na.rm = TRUE), .groups = "drop") |>
+  filter(totale > 100) |>
+  collect()
+```
+:::
+
+In SQL, `HAVING` filters groups after aggregation. In dplyr, filter the summarised result.
+
+## CASE WHEN
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: case-duckdb
+DBI::dbGetQuery(con, "
+  SELECT id, valore,
+         CASE
+           WHEN valore < 0 THEN 'negativo'
+           WHEN valore = 0 THEN 'zero'
+           ELSE 'positivo'
+         END AS classe
+  FROM DT_base
+")
+```
+
+## Arrow
+
+```{r}
+#| label: case-arrow
+ds_base |>
+  mutate(
+    classe = case_when(
+      valore < 0 ~ "negativo",
+      valore == 0 ~ "zero",
+      TRUE ~ "positivo"
+    )
+  ) |>
+  select(id, valore, classe) |>
+  collect()
+```
+:::
+
+Handle missing values explicitly if they require a separate category. A SQL `CASE` without a matching condition
+falls through to `ELSE`; dplyr `case_when()` should likewise include an explicit missing-value branch when needed.
+
+## UNION and UNION ALL
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: union-duckdb
+dbWriteTable(con, "DT1",
+             tibble::tibble(id = 1:3, x = c(10, 20, 30)),
+             overwrite = TRUE)
+dbWriteTable(con, "DT2",
+             tibble::tibble(id = 3:5, x = c(30, 40, 50)),
+             overwrite = TRUE)
+
+# UNION ALL keeps duplicates.
+union_all <- dbGetQuery(con, "
+  SELECT id, x FROM DT1
+  UNION ALL
+  SELECT id, x FROM DT2
+")
+
+# UNION removes duplicate rows.
+union_distinct <- dbGetQuery(con, "
+  SELECT id, x FROM DT1
+  UNION
+  SELECT id, x FROM DT2
+")
+union_all
+union_distinct
+```
+
+## Arrow
+
+```{r}
+#| label: union-arrow
+DT1 <- tibble::tibble(id = 1:3, x = c(10, 20, 30))
+DT2 <- tibble::tibble(id = 3:5, x = c(30, 40, 50))
+
+# Bind rows: equivalent to UNION ALL.
+union_all <- bind_rows(DT1, DT2)
+
+# Distinct rows: equivalent to UNION.
+union_distinct <- union_all |> distinct()
+
+union_all
+union_distinct
+```
+:::
+
+Check column names, column order and compatible types before combining sources. SQL `UNION` aligns columns by
+position; dplyr `bind_rows()` aligns columns by name.
+
+# PROC FORMAT and recoding
+
+## Discrete format
+
+SAS:
+
+``` sas
+proc format;
+  value sexfmt
+    1 = "Uomo"
+    2 = "Donna"
+    other = "Non specificato";
+run;
+```
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: discrete-format-duckdb
+DBI::dbGetQuery(con, "
+  SELECT id, sesso,
+         CASE
+           WHEN sesso = 1 THEN 'Uomo'
+           WHEN sesso = 2 THEN 'Donna'
+           ELSE 'Non specificato'
+         END AS sesso_label
+  FROM DT_base
+")
+```
+
+## Arrow
+
+```{r}
+#| label: discrete-format-arrow
+ds_base |>
+  mutate(
+    sesso_label = case_when(
+      sesso == 1L ~ "Uomo",
+      sesso == 2L ~ "Donna",
+      TRUE ~ "Non specificato"
+    )
+  ) |>
+  select(id, sesso, sesso_label) |>
+  collect()
+```
+:::
+
+If you need a categorical variable with controlled levels, create a factor after collecting the small result or
+maintain the coding in a separate lookup table. Codes outside the defined levels should be handled explicitly.
+
+## 9.2 Numeric range formats
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: range-format-duckdb
+DBI::dbGetQuery(con, "
+  SELECT id, eta,
+         CASE
+           WHEN eta IS NULL THEN 'Mancante'
+           WHEN eta < 18 THEN '0-17'
+           WHEN eta < 65 THEN '18-64'
+           ELSE '65+'
+         END AS classe_eta
+  FROM DT_base
+")
+```
+
+## Arrow
+
+```{r}
+#| label: range-format-arrow
+ds_base |>
+  mutate(
+    classe_eta = case_when(
+      is.na(eta) ~ "Mancante",
+      eta < 18 ~ "0-17",
+      eta < 65 ~ "18-64",
+      TRUE ~ "65+"
+    )
+  ) |>
+  select(id, eta, classe_eta) |>
+  collect()
+```
+:::
+
+Check interval endpoints carefully. SAS range inclusivity and special missing-value ordering do not necessarily
+match R's `cut()` defaults or a hand-written `CASE`.
+
+## 9.3 Complex formats: lookup table
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: lookup-format-duckdb
+dbWriteTable(con, "formato",
+             tibble::tibble(
+               codice = c(1L, 2L, 3L),
+               label = c("Uomo", "Donna", "Altro")
+             ),
+             overwrite = TRUE)
+
+DBI::dbGetQuery(con, "
+  SELECT d.id, d.sesso,
+         COALESCE(f.label, 'Non classificato') AS sesso_label
+  FROM DT_base d
+  LEFT JOIN formato f ON d.sesso = f.codice
+")
+```
+
+## Arrow
+
+```{r}
+#| label: lookup-format-arrow
+formato <- tibble::tibble(
+  codice = c(1L, 2L, 3L),
+  label = c("Uomo", "Donna", "Altro")
+)
+
+formato_file <- file.path(data_dir, "formato.parquet")
+arrow::write_parquet(formato, formato_file)
+
+ds_formato <- arrow::open_dataset(formato_file)
+
+ds_base |>
+  left_join(ds_formato, by = c("sesso" = "codice")) |>
+  mutate(sesso_label = coalesce(label, "Non classificato")) |>
+  select(id, sesso, sesso_label) |>
+  collect()
+```
+:::
+
+Lookup tables are useful for large format catalogs, versioning code mappings, checking unmapped values and reusing
+the same format across programs.
+
+# Missing values, PUT() and INPUT()
+
+SAS distinguishes ordinary numeric missing `.` from special missings `.A`–`.Z` and `._`. R's standard missing value
+is `NA`; `NaN` has different semantics but does not directly represent the complete SAS special-missing system. If
+these distinctions carry administrative meaning, preserve them during import with an explicit status variable or
+textual code before normalising values.
+
+-   SAS `PUT()` applies a format and returns a representation, often character.
+-   SAS `INPUT()` reads a string using an informat and converts the value.
+
+In R/Arrow/DuckDB, the equivalent depends on the format: `CASE` or a lookup table for discrete codes,
+`CAST()`/`TRY_CAST()` in DuckDB, and supported parsing or casting functions in Arrow. Do not assume a generic
+conversion reproduces every SAS informat or format.
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: input-put-duckdb
+DBI::dbGetQuery(con, "
+  SELECT
+    TRY_CAST('123' AS INTEGER) AS parsed_integer,
+    CAST(2025 AS VARCHAR) AS formatted_text
+")
+```
+
+## Arrow
+
+```{r}
+#| label: input-put-arrow
+tibble::tibble(raw_value = c("123", "456")) |>
+  mutate(parsed_integer = as.integer(raw_value))
+```
+:::
+
+The Arrow cast above is strict and may fail on invalid text. For production imports, define an explicit
+invalid-value policy and test the parsing function available in the installed Arrow version.
+
+# Data dictionary and metadata
+
+For migration projects, distinguish variable name, descriptive label, value coding, source type and format, and
+missing-value rules.
+
+```{r}
+#| label: metadata
+metadata <- tibble::tibble(
+  variable = c("sesso", "eta"),
+  label = c("Sesso", "Età in anni"),
+  source_type = c("integer", "integer"),
+  format = c("sexfmt", "agefmt")
+)
+metadata
+```
+
+Store this dictionary as a separate CSV, Parquet file or database table, with versioning appropriate to the
+production pipeline. Do not rely only on R attributes to preserve metadata across engines.
+
+# Writing Parquet datasets
+
+Parquet is a columnar storage format. A single Parquet file is convenient for a compact dataset; a partitioned
+dataset is useful when data are naturally queried by partition columns (for example year or canton). Partition
+design should reflect common filters and avoid creating a very large number of tiny files.
+
+## Write one Parquet file
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: write-parquet-duckdb
+out_file <- file.path(data_dir, "output_duckdb.parquet")
+DBI::dbExecute(con, sprintf(
+  "COPY (SELECT id, anno, cantone, valore FROM DT_base) TO '%s' (FORMAT PARQUET)",
+  normalizePath(out_file, winslash = "/", mustWork = FALSE)
+))
+```
+
+## Arrow
+
+```{r}
+#| label: write-parquet-arrow
+ds_base |>
+  select(id, anno, cantone, valore) |>
+  arrow::write_parquet(file.path(data_dir, "output_arrow.parquet"))
+```
+:::
+
+## Write a partitioned Parquet dataset
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: partition-duckdb
+out_dir_duckdb <- file.path(data_dir, "partitioned_duckdb")
+dir.create(out_dir_duckdb, showWarnings = FALSE)
+
+DBI::dbExecute(con, sprintf(
+  "COPY (SELECT * FROM DT_base) TO '%s'
+   (FORMAT PARQUET, PARTITION_BY (anno))",
+  normalizePath(out_dir_duckdb, winslash = "/", mustWork = FALSE)
+))
+```
+
+## Arrow
+
+```{r}
+#| label: partition-arrow
+out_dir_arrow <- file.path(data_dir, "partitioned_arrow")
+
+ds_base |>
+  arrow::write_dataset(
+    out_dir_arrow,
+    format = "parquet",
+    partitioning = "anno",
+    existing_data_behavior = "overwrite"
+  )
+```
+:::
+
+Partitioning creates a directory tree, not one file. Inspect the resulting files and partition schema with
+`open_dataset()` or DuckDB's `read_parquet()`.
+
+## Read a Parquet file or partitioned dataset
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: read-parquet-duckdb
+DBI::dbGetQuery(con, sprintf(
+  "SELECT id, anno, valore FROM read_parquet('%s') WHERE anno = 2025",
+  normalizePath(parquet_file, winslash = "/", mustWork = TRUE)
+))
+
+# A partitioned dataset can be read using a glob.
+DBI::dbGetQuery(con, sprintf(
+  "SELECT anno, COUNT(*) AS n FROM read_parquet('%s/**/*.parquet')
+   GROUP BY anno ORDER BY anno",
+  normalizePath(file.path(data_dir, "partitioned_arrow"),
+                winslash = "/", mustWork = TRUE)
+))
+```
+
+## Arrow
+
+```{r}
+#| label: read-parquet-arrow
+ds_again <- arrow::open_dataset(parquet_file, format = "parquet")
+
+ds_again |>
+  filter(anno == 2025) |>
+  select(id, anno, valore) |>
+  collect()
+
+ds_partitioned <- arrow::open_dataset(
+  file.path(data_dir, "partitioned_arrow"),
+  format = "parquet"
+)
+ds_partitioned |>
+  group_by(anno) |>
+  summarise(n = n(), .groups = "drop") |>
+  collect()
+```
+:::
+
+A partitioned dataset is normally opened by pointing to its directory. Avoid reading every file individually and
+row-binding them in R: dataset scanners can prune partitions and columns when the query permits it.
+
+# Output and presentation tables
+
+Calculation and presentation are separate concerns. DuckDB and Arrow produce the analytical result; packages such
+as `flextable` or `gt` format a small result for publication.
+
+::: panel-tabset
+## DuckDB
+
+```{r}
+#| label: output-table-duckdb
+tab <- DBI::dbGetQuery(con, "
+  SELECT cantone, anno,
+         COUNT(*) AS n,
+         AVG(valore) AS media
+  FROM DT_base
+  GROUP BY cantone, anno
+  ORDER BY cantone, anno
+")
+tab
+```
+
+## Arrow
+
+```{r}
+#| label: output-table-arrow
+tab <- ds_base |>
+  group_by(cantone, anno) |>
+  summarise(
+    n = n(),
+    media = mean(valore, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  arrange(cantone, anno) |>
+  collect()
+tab
+```
+:::
+
+Optional presentation step:
+
+```{r}
+#| eval: false
+# library(flextable)
+# flextable::flextable(tab)
+```
+
+For publication tables, plan category order and labels, percentage denominators, missing-value handling,
+suppression or flagging of small counts, number formatting, export and reproducibility.
+
+# Choosing between DuckDB and Arrow
+
+| Requirement                                   | DuckDB                     | Arrow                                            |
+|---------------------------------------|---------------------------------------|---------------------------------------|
+| SQL analytics and complex joins               | Strong fit                 | Not its primary interface                        |
+| Query Parquet without loading all rows into R | Yes                        | Yes                                              |
+| Lazy dplyr pipelines                          | Through `dbplyr`           | Native Arrow dplyr interface for supported verbs |
+| In-place database updates                     | Yes, for DuckDB tables     | Not a general Parquet Dataset capability         |
+| Window functions and ordered calculations     | Broad SQL support          | Supported subset; check version                  |
+| Writing Parquet                               | `COPY ... TO`              | `write_parquet()` / `write_dataset()`            |
+| Portability of output                         | Parquet and database files | Parquet                                          |
+
+A useful practical division is:
+
+1.  Use **DuckDB** for complex SQL transformations, joins, window functions, aggregations and CTAS workflows.
+2.  Use **Arrow** for scanning large Parquet datasets, column projection, predicate filtering and dplyr pipelines
+    that are supported by the installed Arrow version.
+3.  Use **Parquet** as the exchange and persistence format between stages.
+4.  Collect into R only when the result is small or a downstream R function requires an in-memory object.
+
+`dbplyr` can be introduced when you want to express DuckDB queries with dplyr syntax. It is not required for the
+SQL examples in this tutorial; direct SQL makes the execution and database semantics explicit.
+
+# Checklist for a SAS migration
+
+1.  **Order:** check every `BY`, `FIRST.`, `LAST.`, `LAG()` and `RETAIN`; define deterministic ordering.
+2.  **Missing values:** compare SAS `.` and special missing values with SQL `NULL`, R `NA` and `NaN`.
+3.  **Joins:** check key cardinality, duplicate keys and row counts before and after each join.
+4.  **Types:** check character/numeric/date conversions, precision and overflow.
+5.  **Formats:** distinguish stored coding from display labels; version lookup tables.
+6.  **Aggregations:** verify denominators and missing-value behaviour.
+7.  **Window logic:** test ties, first/last rows, cumulative calculations and conditional lags.
+8.  **Parquet:** decide whether to write one file or a partitioned dataset; avoid tiny files.
+9.  **Validation:** compare SAS and R outputs on representative samples and edge cases.
+10. **Performance:** filter and project early, avoid unnecessary `collect()`, and inspect query plans for large
+    jobs.
+
+# Quick reference
+
+| Goal              | DuckDB                    | Arrow                                   |
+|-------------------|---------------------------|-----------------------------------------|
+| Filter rows       | `WHERE condition`         | `filter(condition)`                     |
+| Select columns    | `SELECT a, b`             | `select(a, b)`                          |
+| Dynamic selection | quoted identifiers in SQL | `select(all_of(cols))`                  |
+| Drop columns      | `SELECT * EXCLUDE (a)`    | `select(-a)`                            |
+| Create variables  | `SELECT expr AS name`     | `mutate(name = expr)`                   |
+| Aggregate         | `GROUP BY`                | `group_by()` + `summarise()`            |
+| Count rows        | `COUNT(*)`                | `n()` / `count()`                       |
+| Previous value    | `LAG()` window            | `lag()` after `arrange()`               |
+| Cumulative sum    | `SUM() OVER (...)`        | `cumsum()` after `arrange()`            |
+| Left join         | `LEFT JOIN`               | `left_join()`                           |
+| Anti-join         | `NOT EXISTS`              | `anti_join()`                           |
+| Long-to-wide      | `PIVOT`                   | `pivot_wider()` (check backend support) |
+| Recode categories | `CASE` / lookup join      | `case_when()` / lookup join             |
+| Write Parquet     | `COPY ... TO`             | `write_parquet()` / `write_dataset()`   |
+| Read Parquet      | `read_parquet()`          | `open_dataset()`                        |
+
+# Closing DuckDB connection
+
+When the tutorial is finished, disconnect from DuckDB. In a long-running application, use `on.exit()` or
+`tryCatch()` so that the connection is closed even if an error occurs.
+
+```{r}
+#| label: disconnect
+DBI::dbDisconnect(con, shutdown = TRUE)
+```

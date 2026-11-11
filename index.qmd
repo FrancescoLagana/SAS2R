@@ -32,3 +32,7 @@ Programming
 
 - [SAS to R functions](sas_macro_programming_to_r_equivalence_exe.html)
 
+Parquet and DuckDB (out-of-core processing)
+
+- [Parquet and DuckDB - intro](sas_to_duckdb_arrow_tutorial.html)
+- [Parquet and DuckDB - management of longitudinal microdata](sas_to_r_longitudinal_microdata_duckdb_arrow.html)]

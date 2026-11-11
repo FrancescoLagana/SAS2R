@@ -1,0 +1,1583 @@
+---
+title: "SAS to R: Longitudinal Microdata Processing with DuckDB and Arrow"
+subtitle: "A practical guide to scalable longitudinal transformations using DuckDB and Apache Arrow"
+author: "Francesco Laganà"
+date: today
+lang: en
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-copy: true
+    df-print: paged
+  docx:
+    toc: true
+    number-sections: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+# Purpose and scope
+
+This guide translates common SAS DATA-step patterns for longitudinal microdata into R workflows based on **DuckDB** and **Apache Arrow**. The examples focus on operations performed within individuals over time:
+
+- ordering records and identifying the first and last observation;
+- retaining previous values and comparing adjacent waves;
+- calculating cumulative values and event counters;
+- detecting status changes and constructing spells;
+- identifying first and last non-missing values;
+- calculating transitions and individual-level indicators;
+- carrying values forward;
+- constructing balanced panels;
+- validating one-row-per-person-period data.
+
+The two technologies have related but different roles:
+
+- **DuckDB** is an analytical database engine. It executes SQL, including window functions, directly against Parquet files without requiring the full dataset to be loaded into R memory.
+- **Arrow** provides an in-memory columnar format and a dataset interface. It can scan partitioned Parquet data, project and filter columns, and execute supported transformations lazily. Some longitudinal window operations are not available for every Arrow Dataset query. In those cases, collect the relevant data into an Arrow Table/R object or use DuckDB.
+
+The examples use `id` for the individual identifier, `year` for the observation period, and `status`, `income`, and `weight` as illustrative variables. Replace them with the variables in the production data.
+
+## Setup
+
+```{r}
+#| label: setup
+library(DBI)
+library(duckdb)
+library(arrow)
+library(dplyr)
+library(data.table) # used only to create the small illustrative data
+```
+
+## Example data
+
+```{r}
+#| label: example-data
+example <- data.frame(
+  id     = c(101, 101, 101, 102, 102, 103, 103, 103),
+  year   = c(2020, 2021, 2023, 2020, 2022, 2019, 2020, 2021),
+  status = c("A", "A", "B", "B", "B", "A", "B", "B"),
+  income = c(3000, 3200, 3500, 2800, NA, 2500, 2700, 2900),
+  weight = c(1.0, 1.1, 1.2, 0.9, 1.0, 1.0, 1.0, 1.0)
+)
+
+example <- example[order(example$id, example$year), ]
+example
+```
+
+For the examples below, write the data to Parquet. DuckDB and Arrow will read the same file.
+
+```{r}
+#| label: write-example-parquet
+dir.create("Data", showWarnings = FALSE)
+write_parquet(example, "Data/longitudinal_example.parquet")
+```
+
+## Open the data with DuckDB and Arrow
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: open-duckdb
+con <- dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+
+# A view over the Parquet file; the records are not copied into an R data.frame.
+dbExecute(con, "
+  CREATE OR REPLACE VIEW have AS
+  SELECT *
+  FROM read_parquet('Data/longitudinal_example.parquet')
+")
+
+dbGetQuery(con, "SELECT * FROM have ORDER BY id, year")
+```
+
+### Arrow
+
+```{r}
+#| label: open-arrow
+ds <- open_dataset("Data/longitudinal_example.parquet", format = "parquet")
+
+# ds is a Dataset object: data are scanned when an operation is executed.
+ds |>
+  select(id, year, status, income, weight) |>
+  collect()
+```
+
+:::
+
+**Important:** DuckDB and Arrow do not automatically impose a row order. Whenever an operation depends on chronology, specify `ORDER BY id, year` in SQL or `arrange(id, year)` in a supported Arrow/R workflow.
+
+# SAS `BY`, `FIRST.` and `LAST.`
+
+## What SAS creates
+
+```sas
+proc sort data=have;
+  by id year;
+run;
+
+data want;
+  set have;
+  by id;
+  if first.id then first_record = 1;
+  else first_record = 0;
+
+  if last.id then last_record = 1;
+  else last_record = 0;
+run;
+```
+
+`FIRST.id` is 1 on the first observation in each individual group; `LAST.id` is 1 on the last. In a multi-variable `BY` statement, SAS also creates indicators for the boundaries of each BY-group level.
+
+## Flag the first and last record of each individual
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: first-last-duckdb
+dbGetQuery(con, "
+  SELECT
+    id, year, status, income,
+    ROW_NUMBER() OVER (
+      PARTITION BY id ORDER BY year
+    ) = 1 AS first_record,
+    ROW_NUMBER() OVER (
+      PARTITION BY id ORDER BY year DESC
+    ) = 1 AS last_record
+  FROM have
+  ORDER BY id, year
+")
+```
+
+The `ROW_NUMBER()` window function numbers records within each individual. The first and last positions can then be flagged.
+
+### Arrow
+
+```{r}
+#| label: first-last-arrow
+# Window functions on a Dataset are not supported consistently across
+# Arrow versions/backends. Collect the projected columns, then use dplyr.
+arrow_data <- ds |>
+  select(id, year, status, income) |>
+  collect()
+
+arrow_data |>
+  arrange(id, year) |>
+  group_by(id) |>
+  mutate(
+    first_record = row_number() == 1L,
+    last_record  = row_number() == n()
+  ) |>
+  ungroup()
+```
+
+:::
+
+## Keep only the first or last record
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: first-last-rows-duckdb
+firsts <- dbGetQuery(con, "
+  SELECT * EXCLUDE (rn)
+  FROM (
+    SELECT *, ROW_NUMBER() OVER (
+      PARTITION BY id ORDER BY year
+    ) AS rn
+    FROM have
+  )
+  WHERE rn = 1
+  ORDER BY id
+")
+
+lasts <- dbGetQuery(con, "
+  SELECT * EXCLUDE (rn)
+  FROM (
+    SELECT *, ROW_NUMBER() OVER (
+      PARTITION BY id ORDER BY year DESC
+    ) AS rn
+    FROM have
+  )
+  WHERE rn = 1
+  ORDER BY id
+")
+
+firsts
+lasts
+```
+
+### Arrow
+
+```{r}
+#| label: first-last-rows-arrow
+arrow_data <- ds |>
+  select(id, year, status, income, weight) |>
+  collect() |>
+  arrange(id, year)
+
+firsts <- arrow_data |>
+  group_by(id) |>
+  slice_min(year, n = 1, with_ties = FALSE) |>
+  ungroup()
+
+lasts <- arrow_data |>
+  group_by(id) |>
+  slice_max(year, n = 1, with_ties = FALSE) |>
+  ungroup()
+
+firsts
+lasts
+```
+
+:::
+
+If two records for the same individual have the same year, define a tie-breaker (for example, interview date or record sequence). Do not rely on an arbitrary physical row order.
+
+# Counters and row numbers
+
+## Counter within each individual
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: counter-id-duckdb
+dbGetQuery(con, "
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY id ORDER BY year
+         ) AS counter
+  FROM have
+  ORDER BY id, year
+")
+```
+
+### Arrow
+
+```{r}
+#| label: counter-id-arrow
+arrow_data |>
+  arrange(id, year) |>
+  group_by(id) |>
+  mutate(counter = row_number()) |>
+  ungroup()
+```
+
+:::
+
+## Counter within multiple grouping variables
+
+For a counter within `id` and `year`, a further variable is normally needed to distinguish records within the same individual-year group.
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: counter-multiple-duckdb
+dbGetQuery(con, "
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY id, year
+           ORDER BY status
+         ) AS counter_id_year
+  FROM have
+  ORDER BY id, year, status
+")
+```
+
+### Arrow
+
+```{r}
+#| label: counter-multiple-arrow
+arrow_data |>
+  arrange(id, year, status) |>
+  group_by(id, year) |>
+  mutate(counter_id_year = row_number()) |>
+  ungroup()
+```
+
+:::
+
+## Counter for the whole dataset
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: counter-global-duckdb
+dbGetQuery(con, "
+  SELECT *,
+         ROW_NUMBER() OVER (ORDER BY id, year) AS record_id
+  FROM have
+  ORDER BY id, year
+")
+```
+
+### Arrow
+
+```{r}
+#| label: counter-global-arrow
+arrow_data |>
+  arrange(id, year) |>
+  mutate(record_id = row_number())
+```
+
+:::
+
+# `RETAIN`: carry a value across observations
+
+## The SAS pattern
+
+`RETAIN` prevents a DATA-step variable from being reset to missing at the beginning of each iteration. It is often used for previous values, running totals, state flags, and spell identifiers.
+
+```sas
+data want;
+  set have;
+  by id year;
+  retain previous_income;
+
+  if first.id then previous_income = .;
+  output;
+  previous_income = income;
+run;
+```
+
+The output occurs before `previous_income` is updated. Therefore, the current output row contains the income from the previous observation of the same individual.
+
+## Previous and next observation: `LAG()` and `LEAD()`
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: lag-lead-duckdb
+dbGetQuery(con, "
+  SELECT
+    id, year, income,
+    LAG(income) OVER (
+      PARTITION BY id ORDER BY year
+    ) AS previous_income,
+    LEAD(income) OVER (
+      PARTITION BY id ORDER BY year
+    ) AS next_income
+  FROM have
+  ORDER BY id, year
+")
+```
+
+`PARTITION BY id` restarts the window for each individual. The first previous value and last next value are `NULL` (which becomes `NA` when returned to R).
+
+### Arrow
+
+```{r}
+#| label: lag-lead-arrow
+# Collect before applying grouped window functions. This is the portable
+# approach for Arrow Dataset workflows.
+arrow_data |>
+  arrange(id, year) |>
+  group_by(id) |>
+  mutate(
+    previous_income = lag(income),
+    next_income     = lead(income)
+  ) |>
+  ungroup()
+```
+
+:::
+
+**SAS pitfall:** SAS `LAG()` is a queue function. It advances only when the function is executed. SQL `LAG()` and R `lag()` are window/positional operations, so conditional calls in SAS should not be translated mechanically.
+
+# Running totals and cumulative calculations
+
+## Running total within each individual
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: cumulative-sum-duckdb
+dbGetQuery(con, "
+  SELECT *,
+         SUM(COALESCE(income, 0)) OVER (
+           PARTITION BY id
+           ORDER BY year
+           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+         ) AS cumulative_income
+  FROM have
+  ORDER BY id, year
+")
+```
+
+`COALESCE(income, 0)` treats missing income as zero for this calculation. Remove it if missing values should be ignored without being explicitly recoded.
+
+### Arrow
+
+```{r}
+#| label: cumulative-sum-arrow
+arrow_data |>
+  arrange(id, year) |>
+  group_by(id) |>
+  mutate(cumulative_income = cumsum(coalesce(income, 0))) |>
+  ungroup()
+```
+
+:::
+
+## Running count of non-missing values
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: cumulative-nonmissing-duckdb
+dbGetQuery(con, "
+  SELECT *,
+         COUNT(income) OVER (
+           PARTITION BY id
+           ORDER BY year
+           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+         ) AS n_income_observed
+  FROM have
+  ORDER BY id, year
+")
+```
+
+### Arrow
+
+```{r}
+#| label: cumulative-nonmissing-arrow
+arrow_data |>
+  arrange(id, year) |>
+  group_by(id) |>
+  mutate(n_income_observed = cumsum(!is.na(income))) |>
+  ungroup()
+```
+
+:::
+
+## Running maximum or minimum
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: cumulative-extrema-duckdb
+dbGetQuery(con, "
+  SELECT *,
+         MAX(income) OVER (
+           PARTITION BY id ORDER BY year
+           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+         ) AS running_max_income,
+         MIN(income) OVER (
+           PARTITION BY id ORDER BY year
+           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+         ) AS running_min_income
+  FROM have
+  ORDER BY id, year
+")
+```
+
+### Arrow
+
+```{r}
+#| label: cumulative-extrema-arrow
+arrow_data |>
+  arrange(id, year) |>
+  group_by(id) |>
+  mutate(
+    running_max_income = cummax(income),
+    running_min_income = cummin(income)
+  ) |>
+  ungroup()
+```
+
+:::
+
+# Comparing the current record with the previous record
+
+## Difference from previous wave
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: difference-duckdb
+dbGetQuery(con, "
+  SELECT *,
+         income - LAG(income) OVER (
+           PARTITION BY id ORDER BY year
+         ) AS change_income
+  FROM have
+  ORDER BY id, year
+")
+```
+
+### Arrow
+
+```{r}
+#| label: difference-arrow
+arrow_data |>
+  arrange(id, year) |>
+  group_by(id) |>
+  mutate(
+    previous_income = lag(income),
+    change_income = income - previous_income
+  ) |>
+  ungroup()
+```
+
+:::
+
+## Flag a change in categorical status
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: status-change-duckdb
+dbGetQuery(con, "
+  WITH x AS (
+    SELECT *,
+           LAG(status) OVER (
+             PARTITION BY id ORDER BY year
+           ) AS previous_status
+    FROM have
+  )
+  SELECT *,
+         CASE
+           WHEN previous_status IS NULL THEN FALSE
+           WHEN status IS DISTINCT FROM previous_status THEN TRUE
+           ELSE FALSE
+         END AS status_changed
+  FROM x
+  ORDER BY id, year
+")
+```
+
+`IS DISTINCT FROM` compares values while treating `NULL` explicitly. It is safer than `<>` when missing values are possible.
+
+### Arrow
+
+```{r}
+#| label: status-change-arrow
+arrow_data |>
+  arrange(id, year) |>
+  group_by(id) |>
+  mutate(
+    previous_status = lag(status),
+    status_changed = !is.na(previous_status) &
+      (status != previous_status)
+  ) |>
+  ungroup()
+```
+
+:::
+
+# Detecting first occurrence, last occurrence, and extrema
+
+## First observed non-missing value per individual
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: first-nonmissing-duckdb
+dbGetQuery(con, "
+  SELECT *,
+         FIRST_VALUE(income IGNORE NULLS) OVER (
+           PARTITION BY id
+           ORDER BY year
+         ) AS first_observed_income
+  FROM have
+  ORDER BY id, year
+")
+```
+
+`IGNORE NULLS` skips missing values when finding the first observed income. Check the DuckDB version used in production when relying on optional SQL syntax.
+
+### Arrow
+
+```{r}
+#| label: first-nonmissing-arrow
+arrow_data |>
+  arrange(id, year) |>
+  group_by(id) |>
+  mutate(
+    first_observed_income = {
+      z <- income[!is.na(income)]
+      if (length(z) == 0L) NA_real_ else z[1L]
+    }
+  ) |>
+  ungroup()
+```
+
+:::
+
+## First year in which a condition is satisfied
+
+For example, identify the first year in which income is at least 3,000.
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: first-condition-duckdb
+dbGetQuery(con, "
+  SELECT id,
+         MIN(year) FILTER (WHERE income >= 3000) AS first_year_income_3000
+  FROM have
+  GROUP BY id
+  ORDER BY id
+")
+```
+
+### Arrow
+
+```{r}
+#| label: first-condition-arrow
+arrow_data |>
+  group_by(id) |>
+  summarise(
+    first_year_income_3000 = {
+      y <- year[!is.na(income) & income >= 3000]
+      if (length(y) == 0L) NA_integer_ else min(y)
+    },
+    .groups = "drop"
+  )
+```
+
+:::
+
+## Last non-missing value
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: last-nonmissing-duckdb
+dbGetQuery(con, "
+  SELECT *,
+         LAST_VALUE(income IGNORE NULLS) OVER (
+           PARTITION BY id
+           ORDER BY year
+           ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+         ) AS last_observed_income
+  FROM have
+  ORDER BY id, year
+")
+```
+
+### Arrow
+
+```{r}
+#| label: last-nonmissing-arrow
+arrow_data |>
+  arrange(id, year) |>
+  group_by(id) |>
+  mutate(
+    last_observed_income = {
+      z <- income[!is.na(income)]
+      if (length(z) == 0L) NA_real_ else z[length(z)]
+    }
+  ) |>
+  ungroup()
+```
+
+:::
+
+# Constructing spells and episodes
+
+A spell is a consecutive sequence of observations in which a state remains unchanged. The definition of consecutive must be explicit: it can mean consecutive rows or consecutive calendar years.
+
+## Start a new spell whenever status changes
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: spell-status-duckdb
+dbGetQuery(con, "
+  WITH previous AS (
+    SELECT *,
+           LAG(status) OVER (
+             PARTITION BY id ORDER BY year
+           ) AS previous_status
+    FROM have
+  ),
+  marked AS (
+    SELECT *,
+           CASE
+             WHEN previous_status IS NULL THEN 1
+             WHEN status IS DISTINCT FROM previous_status THEN 1
+             ELSE 0
+           END AS new_spell
+    FROM previous
+  )
+  SELECT *,
+         SUM(new_spell) OVER (
+           PARTITION BY id ORDER BY year
+           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+         ) AS spell_id
+  FROM marked
+  ORDER BY id, year
+")
+```
+
+### Arrow
+
+```{r}
+#| label: spell-status-arrow
+arrow_data |>
+  arrange(id, year) |>
+  group_by(id) |>
+  mutate(
+    previous_status = lag(status),
+    new_spell = is.na(previous_status) |
+      is.na(status) |
+      status != previous_status,
+    spell_id = cumsum(new_spell)
+  ) |>
+  ungroup()
+```
+
+:::
+
+If missing status values have a specific substantive meaning, define the transition rule explicitly. The Arrow example treats a missing status as a boundary; it does not silently equate missing with a valid category.
+
+## Start a new spell after a gap in observation years
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: spell-gap-duckdb
+dbGetQuery(con, "
+  WITH previous AS (
+    SELECT *,
+           LAG(year) OVER (
+             PARTITION BY id ORDER BY year
+           ) AS previous_year
+    FROM have
+  ),
+  marked AS (
+    SELECT *,
+           CASE
+             WHEN previous_year IS NULL THEN 1
+             WHEN year - previous_year > 1 THEN 1
+             ELSE 0
+           END AS new_spell
+    FROM previous
+  )
+  SELECT *,
+         SUM(new_spell) OVER (
+           PARTITION BY id ORDER BY year
+           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+         ) AS spell_id
+  FROM marked
+  ORDER BY id, year
+")
+```
+
+### Arrow
+
+```{r}
+#| label: spell-gap-arrow
+arrow_data |>
+  arrange(id, year) |>
+  group_by(id) |>
+  mutate(
+    previous_year = lag(year),
+    new_spell = is.na(previous_year) | (year - previous_year > 1L),
+    spell_id = cumsum(new_spell)
+  ) |>
+  ungroup()
+```
+
+:::
+
+## Summarise each spell
+
+Assume `spell_id` has been created by one of the preceding examples.
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: spell-summary-duckdb
+dbGetQuery(con, "
+  SELECT id, status,
+         MIN(year) AS spell_start,
+         MAX(year) AS spell_end,
+         COUNT(*) AS n_records
+  FROM (
+    SELECT *,
+           SUM(new_spell) OVER (
+             PARTITION BY id ORDER BY year
+           ) AS spell_id
+    FROM (
+      SELECT *,
+             CASE
+               WHEN LAG(status) OVER (
+                 PARTITION BY id ORDER BY year
+               ) IS DISTINCT FROM status THEN 1
+               WHEN ROW_NUMBER() OVER (
+                 PARTITION BY id ORDER BY year
+               ) = 1 THEN 1
+               ELSE 0
+             END AS new_spell
+      FROM have
+    )
+  )
+  GROUP BY id, spell_id, status
+  ORDER BY id, spell_id
+")
+```
+
+### Arrow
+
+```{r}
+#| label: spell-summary-arrow
+spells_arrow <- arrow_data |>
+  arrange(id, year) |>
+  group_by(id) |>
+  mutate(
+    previous_status = lag(status),
+    new_spell = row_number() == 1L |
+      is.na(status) | is.na(previous_status) |
+      status != previous_status,
+    spell_id = cumsum(new_spell)
+  ) |>
+  ungroup()
+
+spells_arrow |>
+  group_by(id, spell_id, status) |>
+  summarise(
+    spell_start = min(year),
+    spell_end = max(year),
+    n_records = n(),
+    .groups = "drop"
+  )
+```
+
+:::
+
+# Transition matrices and state histories
+
+## Previous-to-current status transition
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: transition-duckdb
+dbGetQuery(con, "
+  WITH transitions AS (
+    SELECT
+      id, year, status,
+      LAG(status) OVER (
+        PARTITION BY id ORDER BY year
+      ) AS previous_status
+    FROM have
+  )
+  SELECT previous_status, status, COUNT(*) AS n
+  FROM transitions
+  WHERE previous_status IS NOT NULL
+  GROUP BY previous_status, status
+  ORDER BY previous_status, status
+")
+```
+
+### Arrow
+
+```{r}
+#| label: transition-arrow
+arrow_data |>
+  arrange(id, year) |>
+  group_by(id) |>
+  mutate(previous_status = lag(status)) |>
+  ungroup() |>
+  filter(!is.na(previous_status)) |>
+  count(previous_status, status, name = "n") |>
+  arrange(previous_status, status)
+```
+
+:::
+
+## Individual-level transition indicator
+
+For example, flag individuals who ever move from status A to status B.
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: individual-transition-duckdb
+dbGetQuery(con, "
+  WITH transitions AS (
+    SELECT
+      id,
+      LAG(status) OVER (
+        PARTITION BY id ORDER BY year
+      ) AS previous_status,
+      status
+    FROM have
+  )
+  SELECT id,
+         BOOL_OR(previous_status = 'A' AND status = 'B') AS ever_A_to_B
+  FROM transitions
+  GROUP BY id
+  ORDER BY id
+")
+```
+
+### Arrow
+
+```{r}
+#| label: individual-transition-arrow
+arrow_data |>
+  arrange(id, year) |>
+  group_by(id) |>
+  mutate(previous_status = lag(status)) |>
+  summarise(
+    ever_A_to_B = any(
+      previous_status == "A" & status == "B",
+      na.rm = TRUE
+    ),
+    .groups = "drop"
+  )
+```
+
+:::
+
+# Within-individual transformations and baseline values
+
+## Deviation from the first observed value
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: baseline-deviation-duckdb
+dbGetQuery(con, "
+  SELECT *,
+         income - FIRST_VALUE(income) OVER (
+           PARTITION BY id ORDER BY year
+         ) AS deviation_from_first
+  FROM have
+  ORDER BY id, year
+")
+```
+
+If the first record can have missing income, use a first-non-missing-value expression rather than `FIRST_VALUE(income)`.
+
+### Arrow
+
+```{r}
+#| label: baseline-deviation-arrow
+arrow_data |>
+  arrange(id, year) |>
+  group_by(id) |>
+  mutate(
+    baseline_income = first(income),
+    deviation_from_first = income - baseline_income
+  ) |>
+  ungroup()
+```
+
+:::
+
+## Within-individual mean and centring
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: within-mean-duckdb
+dbGetQuery(con, "
+  SELECT *,
+         AVG(income) OVER (PARTITION BY id) AS mean_income_id,
+         income - AVG(income) OVER (PARTITION BY id) AS centred_income
+  FROM have
+  ORDER BY id, year
+")
+```
+
+### Arrow
+
+```{r}
+#| label: within-mean-arrow
+arrow_data |>
+  group_by(id) |>
+  mutate(
+    mean_income_id = mean(income, na.rm = TRUE),
+    centred_income = income - mean_income_id
+  ) |>
+  ungroup()
+```
+
+:::
+
+## Within-individual rank
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: rank-duckdb
+dbGetQuery(con, "
+  SELECT *,
+         RANK() OVER (
+           PARTITION BY id ORDER BY income
+         ) AS income_rank
+  FROM have
+  ORDER BY id, year
+")
+```
+
+### Arrow
+
+```{r}
+#| label: rank-arrow
+arrow_data |>
+  group_by(id) |>
+  mutate(income_rank = min_rank(income)) |>
+  ungroup()
+```
+
+:::
+
+# Conditional carry-forward and last observation carried forward
+
+A common longitudinal task is to propagate the most recent non-missing value within an individual. This is often called LOCF (last observation carried forward). The operation must not carry values across individuals.
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: locf-duckdb
+dbGetQuery(con, "
+  SELECT *,
+         LAST_VALUE(income IGNORE NULLS) OVER (
+           PARTITION BY id
+           ORDER BY year
+           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+         ) AS income_locf
+  FROM have
+  ORDER BY id, year
+")
+```
+
+### Arrow
+
+```{r}
+#| label: locf-arrow
+arrow_data |>
+  arrange(id, year) |>
+  group_by(id) |>
+  tidyr::fill(income, .direction = "down") |>
+  rename(income_locf = income) |>
+  ungroup()
+```
+
+:::
+
+The Arrow example uses `tidyr::fill()` after collecting the data into an R object. For very large datasets, consider performing LOCF in DuckDB to avoid materialising the full dataset in R.
+
+# Conditional accumulation and event counters
+
+## Count events to date
+
+Suppose an event is defined as a transition into status B.
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: event-counter-duckdb
+dbGetQuery(con, "
+  WITH x AS (
+    SELECT *,
+           LAG(status) OVER (
+             PARTITION BY id ORDER BY year
+           ) AS previous_status,
+           ROW_NUMBER() OVER (
+             PARTITION BY id ORDER BY year
+           ) AS row_num
+    FROM have
+  ),
+  y AS (
+    SELECT *,
+      CASE
+        WHEN previous_status IS NULL THEN NULL
+        WHEN status IS NULL THEN NULL
+        WHEN status = 'B'
+         AND previous_status IS DISTINCT FROM 'B' THEN 1
+        ELSE 0
+      END AS entry_into_B
+    FROM x
+  )
+  SELECT *,
+    SUM(COALESCE(entry_into_B, 0)) OVER (
+      PARTITION BY id ORDER BY year
+      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS observed_entries_into_B
+  FROM y
+  ORDER BY id, year
+")
+```
+
+### Arrow
+
+```{r}
+#| label: event-counter-arrow
+arrow_data |>
+  arrange(id, year) |>
+  group_by(id) |>
+  mutate(
+    previous_status = lag(status),
+    event = status == "B" &
+      (is.na(previous_status) | previous_status != "B"),
+    event = coalesce(event, FALSE),
+    entries_into_B = cumsum(event)
+  ) |>
+  ungroup()
+```
+
+:::
+
+## Count records satisfying a condition
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: condition-counter-duckdb
+dbGetQuery(con, "
+  SELECT *,
+         SUM(CASE WHEN income >= 3000 THEN 1 ELSE 0 END) OVER (
+           PARTITION BY id ORDER BY year
+           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+         ) AS n_years_income_3000
+  FROM have
+  ORDER BY id, year
+")
+```
+
+### Arrow
+
+```{r}
+#| label: condition-counter-arrow
+arrow_data |>
+  arrange(id, year) |>
+  group_by(id) |>
+  mutate(
+    n_years_income_3000 = cumsum(
+      !is.na(income) & income >= 3000
+    )
+  ) |>
+  ungroup()
+```
+
+:::
+
+# Multi-row state logic: when a loop is appropriate
+
+Not every longitudinal transformation is naturally expressed as a single window function. A sequential loop may be appropriate when the next state depends on several conditions evaluated using the state built by previous rows.
+
+Before writing a loop, check whether the operation can be expressed as:
+
+1. a `LAG()`/`LEAD()` window function;
+2. a cumulative sum or cumulative maximum;
+3. a conditional window aggregate;
+4. a spell identifier followed by a grouped summary.
+
+DuckDB is generally preferable for stateful operations on large Parquet datasets when the logic can be translated into SQL window functions. Arrow is useful for scanning and filtering the source data, but complex sequential state logic may require collection or a different execution engine.
+
+# Multiple output datasets
+
+The same source can produce multiple derived datasets without loading the entire source into R.
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: multiple-output-duckdb
+dbExecute(con, "
+  CREATE OR REPLACE TABLE first_observation AS
+  SELECT * EXCLUDE (rn)
+  FROM (
+    SELECT *,
+           ROW_NUMBER() OVER (
+             PARTITION BY id ORDER BY year
+           ) AS rn
+    FROM have
+  )
+  WHERE rn = 1
+")
+
+dbExecute(con, "
+  CREATE OR REPLACE TABLE individual_summary AS
+  SELECT
+    id,
+    COUNT(*) AS n_records,
+    MIN(year) AS first_year,
+    MAX(year) AS last_year,
+    AVG(income) AS mean_income
+  FROM have
+  GROUP BY id
+")
+
+dbGetQuery(con, "SELECT * FROM individual_summary ORDER BY id")
+```
+
+### Arrow
+
+```{r}
+#| label: multiple-output-arrow
+# Dataset aggregations and projections can remain lazy until collect/write.
+individual_summary <- ds |>
+  group_by(id) |>
+  summarise(
+    n_records = n(),
+    first_year = min(year),
+    last_year = max(year),
+    mean_income = mean(income, na.rm = TRUE)
+  )
+
+individual_summary |>
+  collect()
+
+first_observation <- arrow_data |>
+  arrange(id, year) |>
+  group_by(id) |>
+  slice_head(n = 1) |>
+  ungroup()
+```
+
+:::
+
+# Construct a balanced panel
+
+A balanced panel contains one row for every individual-period combination in the chosen observation window. The example below creates all years between 2019 and 2023 for every individual observed in the source.
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: balanced-panel-duckdb
+dbGetQuery(con, "
+  WITH ids AS (
+    SELECT DISTINCT id FROM have
+  ),
+  years AS (
+    SELECT * FROM range(2019, 2024) AS t(year)
+  )
+  SELECT ids.id, years.year
+  FROM ids
+  CROSS JOIN years
+  ORDER BY ids.id, years.year
+")
+```
+
+To add observed variables, left join the balanced grid to the original data:
+
+```{r}
+#| label: balanced-panel-join-duckdb
+dbGetQuery(con, "
+  WITH ids AS (
+    SELECT DISTINCT id FROM have
+  ),
+  years AS (
+    SELECT * FROM range(2019, 2024) AS t(year)
+  ),
+  panel AS (
+    SELECT ids.id, years.year
+    FROM ids CROSS JOIN years
+  )
+  SELECT panel.id, panel.year, have.status, have.income
+  FROM panel
+  LEFT JOIN have USING (id, year)
+  ORDER BY panel.id, panel.year
+")
+```
+
+### Arrow
+
+```{r}
+#| label: balanced-panel-arrow
+# Collect distinct identifiers and years to construct the grid in R.
+ids <- ds |>
+  distinct(id) |>
+  collect()
+
+years <- tibble::tibble(year = 2019:2023)
+
+balanced_grid <- tidyr::crossing(ids, years)
+
+balanced_panel <- balanced_grid |>
+  left_join(arrow_data, by = c("id", "year")) |>
+  arrange(id, year)
+
+balanced_panel
+```
+
+:::
+
+# Read and write Parquet datasets
+
+For large longitudinal files, avoid reading all columns and all rows if the operation needs only a subset. Projection (selecting columns) and predicate pushdown (filtering rows) reduce I/O.
+
+## Read selected columns and filter rows
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: parquet-filter-duckdb
+dbGetQuery(con, "
+  SELECT id, year, income
+  FROM read_parquet('Data/longitudinal_example.parquet')
+  WHERE year >= 2021 AND income IS NOT NULL
+  ORDER BY id, year
+")
+```
+
+### Arrow
+
+```{r}
+#| label: parquet-filter-arrow
+ds |>
+  select(id, year, income) |>
+  filter(year >= 2021, !is.na(income)) |>
+  arrange(id, year) |>
+  collect()
+```
+
+:::
+
+## Write a partitioned Parquet dataset
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: write-partitioned-duckdb
+# Partition by year. Use a new/empty destination directory.
+dbExecute(con, "
+  COPY (
+    SELECT *
+    FROM have
+    ORDER BY id, year
+  )
+  TO 'Data/duckdb_partitioned'
+  (FORMAT PARQUET, PARTITION_BY (year), OVERWRITE_OR_IGNORE TRUE)
+")
+```
+
+### Arrow
+
+```{r}
+#| label: write-partitioned-arrow
+# write_dataset() creates a directory of Parquet files partitioned by year.
+write_dataset(
+  arrow_data,
+  path = "Data/arrow_partitioned",
+  format = "parquet",
+  partitioning = "year",
+  existing_data_behavior = "delete_matching"
+)
+```
+
+:::
+
+Read a partitioned dataset by pointing `open_dataset()` to its directory:
+
+```{r}
+#| label: read-partitioned-arrow
+ds_partitioned <- open_dataset("Data/arrow_partitioned", format = "parquet")
+ds_partitioned |>
+  filter(year >= 2021) |>
+  select(id, year, status, income) |>
+  collect()
+```
+
+DuckDB can query the same directory:
+
+```{r}
+#| label: read-partitioned-duckdb
+dbGetQuery(con, "
+  SELECT
+    id,
+    CAST(year AS DOUBLE) AS year,
+    status,
+    income
+  FROM read_parquet(
+    'Data/duckdb_partitioned/**/*.parquet',
+    hive_partitioning = true
+  )
+  WHERE CAST(year AS DOUBLE) >= 2021
+  ORDER BY id, year
+")
+```
+
+# Validation: one row per individual-period
+
+A production longitudinal file should be checked for duplicate keys, missing identifiers, unexpected periods, and implausible sequences.
+
+::: {.panel-tabset}
+
+### DuckDB
+
+```{r}
+#| label: validation-duckdb
+# Duplicate id-year combinations
+dbGetQuery(con, "
+  SELECT id, year, COUNT(*) AS n
+  FROM have
+  GROUP BY id, year
+  HAVING COUNT(*) > 1
+  ORDER BY id, year
+")
+
+# Missing identifiers or periods
+dbGetQuery(con, "
+  SELECT
+    COUNT(*) FILTER (WHERE id IS NULL) AS missing_id,
+    COUNT(*) FILTER (WHERE year IS NULL) AS missing_year,
+    COUNT(*) AS n_records
+  FROM have
+")
+```
+
+### Arrow
+
+```{r}
+#| label: validation-arrow
+arrow_data |>
+  count(id, year) |>
+  filter(n > 1)
+
+arrow_data |>
+  summarise(
+    missing_id = sum(is.na(id)),
+    missing_year = sum(is.na(year)),
+    n_records = n()
+  )
+```
+
+:::
+
+# Important migration pitfalls
+
+## SQL `NULL` and R `NA`
+
+DuckDB uses SQL `NULL`; values returned to R are generally represented as `NA`. SQL comparisons involving `NULL` can return an unknown result. Use `IS NULL`, `IS NOT NULL`, `COALESCE()`, or `IS DISTINCT FROM` as appropriate.
+
+## Missing values in cumulative calculations
+
+Decide whether a missing value should:
+- contribute zero;
+- be ignored;
+- make the cumulative result missing from that point onward;
+- or be treated as a distinct state.
+
+These choices are not interchangeable. In SQL, `SUM()` ignores `NULL`, while `COALESCE(x, 0)` explicitly converts it to zero. In R, `cumsum()` propagates `NA` unless the vector is recoded first.
+
+## Ordering and ties
+
+Window functions require an explicit `ORDER BY`. If multiple records share the same `id` and `year`, the ordering is not deterministic unless another tie-breaker is supplied. This matters for `LAG()`, `LEAD()`, `ROW_NUMBER()`, and spell construction.
+
+## Arrow Dataset versus Arrow Table
+
+`open_dataset()` creates a lazy dataset interface. Many projections, filters, and aggregations can be pushed down to the Parquet scan. However, not every R/dplyr operation is supported by every Arrow Dataset backend/version. `collect()` materialises the result in R memory. Use it deliberately, preferably after filtering and selecting the required columns.
+
+## DuckDB connection lifecycle
+
+A DuckDB connection is opened once and reused for multiple queries. Close it when the work is finished:
+
+```{r}
+#| label: close-duckdb
+dbDisconnect(con, shutdown = TRUE)
+```
+
+For an in-memory database, disconnecting with `shutdown = TRUE` shuts down the DuckDB instance. For a persistent database, set `dbdir` to a file path instead of `":memory:"`.
+
+# Recommended production pattern
+
+For large annual register transformations, a practical architecture is:
+
+1. **Inspect and filter with DuckDB or Arrow**: read only the required Parquet columns and periods.
+2. **Use DuckDB for longitudinal windows**: `LAG`, `LEAD`, `ROW_NUMBER`, cumulative aggregates, spell IDs, and transitions.
+3. **Use Arrow for columnar interchange and Parquet datasets**: scanning, projection, filtering, partitioned output, and exchange with other tools.
+4. **Materialise only when needed**: collect small validation tables or selected subsets into R.
+5. **Validate every transformation**: key uniqueness, row counts, missingness, period coverage, and consistency of derived states.
+
+For a transformation pipeline that is dominated by sequential longitudinal operations, DuckDB can often perform the entire transformation directly on Parquet. Arrow remains valuable for efficient dataset access and data interchange; it does not need to duplicate every DuckDB operation.
+
+# SAS-to-DuckDB/Arrow equivalence table
+
+| SAS DATA-step / PROC SQL | DuckDB | Arrow / R |
+|---|---|---|
+| `PROC SORT BY id year` | `ORDER BY id, year` | `arrange(id, year)` |
+| `BY id` groups | `PARTITION BY id` | `group_by(id)` |
+| `FIRST.id` | `ROW_NUMBER() ... = 1` | `row_number() == 1` |
+| `LAST.id` | reverse `ROW_NUMBER()` or descending order | `row_number() == n()` |
+| `RETAIN` previous value | `LAG()` window | `lag()` after collection |
+| `LEAD` / next observation | `LEAD()` window | `lead()` after collection |
+| Running total | `SUM() OVER (...)` | `cumsum()` |
+| Running count | `COUNT() OVER (...)` | `cumsum(condition)` |
+| Status transition | `LAG()` + comparison | `lag()` + comparison |
+| Spell identifier | cumulative sum of boundary flag | `cumsum(boundary)` |
+| Group summary | `GROUP BY` | `group_by()` + `summarise()` |
+| Read Parquet | `read_parquet()` | `open_dataset()` |
+| Write Parquet | `COPY ... TO ... (FORMAT PARQUET)` | `write_parquet()` / `write_dataset()` |
+
+# Final checklist
+
+- [ ] Define the individual identifier and time variable.
+- [ ] Define a deterministic ordering, including tie-breakers where necessary.
+- [ ] Decide how missing values should behave in every calculation.
+- [ ] Use window functions for previous/next observations and cumulative logic.
+- [ ] Keep large scans and transformations in DuckDB/Arrow rather than collecting everything into R.
+- [ ] Use Arrow Dataset operations only where the required verbs are supported by the installed version.
+- [ ] Validate uniqueness of the individual-period key.
+- [ ] Check row counts before and after joins, filters, and panel expansion.
+- [ ] Write production outputs to Parquet and document partitioning.
+
