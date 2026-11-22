@@ -1,0 +1,727 @@
+---
+title: "Programmer avec data.table"
+subtitle: "Un tutoriel progressif sur la programmation dynamique en R"
+author: "Tutoriel pédagogique"
+lang: fr
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-fold: false
+    theme: cosmo
+    df-print: paged
+  pdf:
+    toc: true
+    number-sections: true
+    pdf-engine: xelatex
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+# Objectifs et méthode
+
+Ce tutoriel explique comment écrire du code `data.table` réutilisable, notamment des fonctions qui reçoivent les noms des colonnes sous forme de chaînes de caractères.
+
+Le fil conducteur est la distinction entre :
+
+- **les données** : les colonnes et les lignes d'un tableau ;
+- **les valeurs** : par exemple `"salaire"` ou `4500` ;
+- **les expressions** : par exemple `mean(salaire)` ;
+- **les noms de colonnes** : par exemple le symbole `salaire`.
+
+À la fin, vous saurez sélectionner des colonnes dynamiquement, filtrer, grouper, créer des variables, appliquer des transformations à plusieurs colonnes et comprendre `env` et `substitute2()`.
+
+Le tutoriel peut être exécuté de haut en bas. Chaque exemple repose sur les données créées dans ce document.
+
+# Préparer l'environnement
+
+```{r}
+# Installer le package une seule fois si nécessaire :
+# install.packages("data.table")
+
+library(data.table)
+packageVersion("data.table")
+```
+
+Pour suivre le tutoriel, il est préférable d'utiliser une version récente de `data.table` (1.15.0 ou supérieure pour les exemples fondés sur `env` et `substitute2()`).
+
+# Créer un jeu de données reproductible
+
+Nous allons utiliser un petit tableau de personnes. Les noms et les valeurs sont fictifs.
+
+```{r}
+DT <- data.table(
+  id = 1:8,
+  sexe = c("F", "M", "F", "M", "F", "M", "F", "M"),
+  age = c(24, 31, 29, 42, 36, 27, 51, 45),
+  salaire = c(4200, 5100, 4600, 6200, 5400, 4800, 7100, 6500),
+  formation = c("CFC", "HES", "Uni", "CFC", "HES", "Uni", "Uni", "HES"),
+  actif = c(TRUE, TRUE, TRUE, FALSE, TRUE, TRUE, FALSE, TRUE)
+)
+
+DT
+```
+
+`data.table` ressemble à un `data.frame`, mais propose une syntaxe compacte et des opérations efficaces. Les trois parties principales de la syntaxe sont :
+
+``` r
+DT[i, j, by]
+```
+
+- `i` : quelles lignes retenir ?
+- `j` : que faire des colonnes ?
+- `by` : comment répéter l'opération par groupe ?
+
+Quelques exemples simples :
+
+```{r}
+# Lignes 1 à 3
+DT[1:3]
+
+# Personnes de 30 ans ou plus
+DT[age >= 30]
+
+# Une colonne
+DT[, salaire]
+
+# Deux colonnes
+DT[, .(id, salaire)]
+
+# Salaire moyen
+DT[, mean(salaire)]
+
+# Salaire moyen par sexe
+DT[, mean(salaire), by = sexe]
+```
+
+# Le problème de la programmation dynamique
+
+## Une colonne écrite directement
+
+Quand le nom de la colonne est connu, on l'écrit directement :
+
+```{r}
+DT[, mean(salaire)]
+```
+
+## Une fonction avec un nom de colonne variable
+
+Supposons que l'on veuille écrire une fonction capable de calculer la moyenne de n'importe quelle colonne numérique.
+
+On pourrait essayer :
+
+```{r}
+moyenne_naive <- function(data, variable) {
+  data[, mean(variable)]
+}
+
+# Cette fonction ne fait pas ce que l'on souhaite :
+# moyenne_naive(DT, "salaire")
+```
+
+Pourquoi ? Dans l'expression `mean(variable)`, `variable` est interprété comme un nom à évaluer. Or nous avons passé la chaîne de caractères `"salaire"`. La chaîne n'est pas automatiquement transformée en référence à la colonne `salaire`.
+
+Il faut donc expliquer à R comment utiliser le nom contenu dans cette chaîne.
+
+# Première solution : `get()`
+
+`get()` reçoit une chaîne et recherche l'objet portant le nom indiqué.
+
+```{r}
+moyenne_get <- function(data, variable) {
+  data[, mean(get(variable))]
+}
+
+moyenne_get(DT, "salaire")
+moyenne_get(DT, "age")
+```
+
+Ici :
+
+1.  `variable` contient la chaîne `"salaire"` ;
+2.  `get(variable)` recherche l'objet nommé `salaire` dans le contexte d'évaluation de `data.table` ;
+3.  `mean()` calcule la moyenne des valeurs de cette colonne.
+
+`get()` est utile et reste parfaitement valable dans de nombreux cas. Mais lorsqu'on construit des expressions dynamiques plus élaborées, il est souvent plus commode de remplacer les noms dans l'expression avant son évaluation.
+
+# Deuxième solution : `env` et `substitute2()`
+
+## L'idée essentielle
+
+Regardons ce code :
+
+``` r
+variable <- "salaire"
+
+DT[
+  ,
+  mean(x),
+  env = list(x = variable)
+]
+```
+
+Il faut lire `env = list(x = variable)` comme une table de correspondance :
+
+- à gauche, `x` est le nom utilisé dans l'expression ;
+- à droite, `variable` contient `"salaire"`, le nom de la colonne à utiliser.
+
+`data.table` utilise `substitute2()` pour remplacer le symbole `x` par le symbole `salaire` dans l'expression `mean(x)`. L'expression obtenue est équivalente à :
+
+``` r
+mean(salaire)
+```
+
+Elle est ensuite évaluée dans le contexte des colonnes de `DT`.
+
+**Important :** `env` ne contient pas les observations de la colonne. Il contient des informations servant à construire l'expression. Ce sont les données de `DT` qui sont consultées au moment du calcul.
+
+## Voir la substitution sans calculer la moyenne
+
+On peut appeler `substitute2()` directement :
+
+```{r}
+substitute2(
+  mean(x),
+  env = list(x = "salaire")
+)
+```
+
+Le résultat affiché est une expression, pas le nombre 5500. La substitution modifie le code ; elle ne calcule pas encore la moyenne.
+
+On peut aussi vérifier le résultat numérique :
+
+```{r}
+DT[, mean(x), env = list(x = "salaire")]
+```
+
+## Pourquoi écrire `x = variable` ?
+
+Dans :
+
+``` r
+env = list(x = variable)
+```
+
+`x` est un nom choisi librement. C'est le nom qui apparaît dans l'expression `mean(x)`.
+
+`variable` est l'objet R dont le contenu est `"salaire"`.
+
+On aurait pu choisir un autre nom, à condition de garder la correspondance :
+
+```{r}
+variable <- "salaire"
+
+DT[, mean(colonne), env = list(colonne = variable)]
+DT[, mean(abc),     env = list(abc = variable)]
+```
+
+Ces trois expressions calculent la même moyenne :
+
+```{r}
+identical(
+  DT[, mean(x), env = list(x = "salaire")],
+  DT[, mean(colonne), env = list(colonne = "salaire")]
+)
+```
+
+## Noms de colonnes et valeurs : une distinction cruciale
+
+Par défaut, `substitute2()` transforme les chaînes de caractères fournies dans `env` en symboles. C'est ce qui permet d'utiliser `"salaire"` comme nom de colonne.
+
+Mais parfois, on veut conserver une chaîne comme une valeur ordinaire, par exemple `"F"` pour filtrer le sexe. On utilise alors `I()` pour empêcher cette conversion.
+
+```{r}
+# x devient le nom de colonne salaire.
+# valeur reste la chaîne de caractères "F".
+DT[
+  sexe == valeur,
+  mean(x),
+  env = list(
+    x = "salaire",
+    valeur = I("F")
+  )
+]
+```
+
+À retenir :
+
+- `"salaire"` dans `env` devient normalement un nom de colonne ;
+- `I("F")` reste une valeur textuelle ;
+- `4500` reste une valeur numérique.
+
+# Programmer les trois parties i, j et by
+
+## Filtrer avec un nom de colonne variable
+
+```{r}
+filtrer_superieur <- function(data, variable, seuil) {
+  data[
+    x > seuil,
+    ,
+    env = list(
+      x = variable,
+      seuil = seuil
+    )
+  ]
+}
+
+filtrer_superieur(DT, "salaire", 5000)
+filtrer_superieur(DT, "age", 35)
+```
+
+La formule `x > seuil` est remplacée avant son évaluation. Pour le premier appel, elle devient l'équivalent de `salaire > 5000`.
+
+## Calculer une statistique par groupe
+
+```{r}
+moyenne_par_groupe <- function(data, variable, groupe) {
+  data[
+    ,
+    mean(x),
+    by = groupe,
+    env = list(
+      x = variable,
+      groupe = groupe
+    )
+  ]
+}
+
+moyenne_par_groupe(DT, "salaire", "sexe")
+moyenne_par_groupe(DT, "age", "formation")
+```
+
+On rend ici dynamiques deux noms différents :
+
+- `x`, utilisé dans `j` ;
+- `groupe`, utilisé dans `by`.
+
+## Renommer le résultat
+
+Pour donner un nom explicite à la colonne calculée, on peut construire une expression avec `env` :
+
+```{r}
+moyenne_par_groupe_nommee <- function(data, variable, groupe,
+                                      nom_resultat = "moyenne") {
+  data[
+    ,
+    (nom_resultat) := mean(x),
+    by = groupe,
+    env = list(
+      x = variable,
+      groupe = groupe
+    )
+  ][, c(groupe, nom_resultat), with = FALSE]
+}
+
+# On travaille sur une copie pour conserver DT intact.
+DT_test <- copy(DT)
+moyenne_par_groupe_nommee(DT_test, "salaire", "sexe", "salaire_moyen")
+```
+
+Cette version illustre aussi la différence entre le nom utilisé dans une expression et le nom d'une colonne créée par affectation. Une autre façon, souvent plus lisible, consiste à utiliser `setnames()` après le calcul :
+
+```{r}
+resultat <- DT[, .(moyenne = mean(salaire)), by = sexe]
+setnames(resultat, "moyenne", "salaire_moyen")
+resultat
+```
+
+# Créer ou modifier des colonnes
+
+## Le principe de `:=`
+
+L'opérateur `:=` ajoute ou modifie une colonne par référence, c'est-à-dire sans devoir réaffecter le tableau entier.
+
+```{r}
+DT_demo <- copy(DT)
+
+DT_demo[, salaire_annuel := salaire * 12]
+DT_demo[, salaire_annuel]
+```
+
+## Nom de la nouvelle colonne choisi dynamiquement
+
+La syntaxe `(nouveau_nom) := ...` indique que le nom de la colonne est contenu dans l'objet `nouveau_nom`.
+
+```{r}
+creer_colonne <- function(data, variable, nouveau_nom, facteur = 1) {
+  data[
+    ,
+    (nouveau_nom) := x * facteur,
+    env = list(x = variable)
+  ]
+}
+
+DT_demo <- copy(DT)
+creer_colonne(DT_demo, "salaire", "salaire_annuel", 12)
+creer_colonne(DT_demo, "age", "age_en_mois", 12)
+
+DT_demo[, .(age, age_en_mois, salaire, salaire_annuel)]
+```
+
+Les deux substitutions sont différentes :
+
+- `x` est remplacé par le nom de la colonne source ;
+- `(nouveau_nom)` demande à `data.table` d'utiliser le contenu de `nouveau_nom` comme nom de la colonne créée.
+
+## Ajouter un indicateur conditionnel
+
+```{r}
+ajouter_indicateur <- function(data, variable, seuil, nom_indicateur) {
+  data[
+    ,
+    (nom_indicateur) := x >= seuil,
+    env = list(
+      x = variable,
+      seuil = seuil
+    )
+  ]
+}
+
+DT_demo <- copy(DT)
+ajouter_indicateur(DT_demo, "salaire", 5500, "salaire_eleve")
+DT_demo[, .(id, salaire, salaire_eleve)]
+```
+
+# Sélectionner des colonnes dynamiquement
+
+Il existe plusieurs méthodes. Le choix dépend de ce que l'on veut faire.
+
+## Méthode simple : `.SDcols`
+
+`.SD` représente les colonnes sélectionnées pour l'opération en cours (en excluant les colonnes de regroupement).
+
+```{r}
+colonnes <- c("age", "salaire")
+
+DT[, .SD, .SDcols = colonnes]
+```
+
+Pour calculer la moyenne de plusieurs colonnes :
+
+```{r}
+DT[, lapply(.SD, mean), .SDcols = colonnes]
+```
+
+Pour calculer plusieurs statistiques :
+
+```{r}
+DT[
+  ,
+  lapply(.SD, function(x) c(moyenne = mean(x), minimum = min(x))),
+  .SDcols = colonnes
+]
+```
+
+`.SDcols` est généralement le choix le plus direct lorsqu'on veut appliquer la même opération à un ensemble de colonnes.
+
+## Sélectionner des colonnes avec `..`
+
+Le préfixe `..` indique que le nom doit être recherché dans l'environnement appelant, plutôt que parmi les colonnes de `DT`.
+
+```{r}
+colonnes <- c("id", "sexe", "salaire")
+
+DT[, ..colonnes]
+```
+
+On peut retenir :
+
+- `.SDcols = colonnes` : définit les colonnes utilisées par `.SD` ;
+- `..colonnes` : sélectionne directement les colonnes dont les noms sont contenus dans le vecteur `colonnes`.
+
+# Plusieurs noms de colonnes dans une expression
+
+`env` peut remplacer plusieurs symboles à la fois.
+
+```{r}
+var1 <- "age"
+var2 <- "salaire"
+
+DT[
+  ,
+  .(premiere = mean(x), deuxieme = mean(y)),
+  env = list(
+    x = var1,
+    y = var2
+  )
+]
+```
+
+L'expression est équivalente à :
+
+``` r
+DT[, .(premiere = mean(age), deuxieme = mean(salaire))]
+```
+
+# Comprendre `I()` avec des exemples
+
+`I()` est utile lorsqu'une chaîne doit rester une valeur et ne pas devenir un nom de colonne.
+
+```{r}
+# La valeur "F" sert à filtrer les lignes.
+DT[
+  sexe == valeur,
+  .(salaire_moyen = mean(salaire)),
+  env = list(valeur = I("F"))
+]
+```
+
+Comparons avec la substitution d'un nom de colonne :
+
+```{r}
+# x est remplacé par le symbole salaire.
+DT[
+  ,
+  mean(x),
+  env = list(x = "salaire")
+]
+```
+
+La règle pratique est simple : dans `env`, une chaîne sert normalement à désigner un nom ; utilisez `I()` si vous voulez qu'elle reste une valeur littérale.
+
+# `get()`, `env` ou `.SDcols` ?
+
+Il n'existe pas une seule méthode adaptée à toutes les situations.
+
+| Besoin | Méthode conseillée | Exemple |
+|------------------------|------------------------|------------------------|
+| Une colonne désignée par une chaîne dans une expression | `env` | `mean(x)` avec `env` |
+| Accéder simplement à une colonne par son nom texte | `get()` | `get(variable)` |
+| Sélectionner plusieurs colonnes | `.SDcols` | `lapply(.SD, mean)` |
+| Sélectionner plusieurs colonnes directement | `..` | `DT[, ..colonnes]` |
+| Créer une colonne avec un nom variable | `(nom) :=` | `(nouveau_nom) := valeur` |
+
+## Comparer `get()` et `env`
+
+Les deux versions suivantes donnent le même résultat :
+
+```{r}
+variable <- "salaire"
+
+DT[, mean(get(variable))]
+DT[, mean(x), env = list(x = variable)]
+```
+
+Pourquoi préférer parfois `env` ?
+
+1.  La formule reste lisible : `mean(x)` plutôt que `mean(get(variable))`.
+2.  On peut remplacer plusieurs noms dans une même expression.
+3.  On peut rendre dynamiques `i`, `j` et `by`.
+4.  On peut construire des appels plus complexes.
+
+Mais `get()` n'est pas interdit ni toujours moins bon. Pour une opération très simple, il peut être parfaitement approprié.
+
+# Construire des expressions avec `substitute2()`
+
+Cette partie est plus avancée. Il faut d'abord distinguer deux choses :
+
+- une **expression** est du code R représenté comme un objet ;
+- le **résultat** est la valeur obtenue après l'exécution de ce code.
+
+## Examiner une expression
+
+```{r}
+expr <- quote(mean(x))
+expr
+```
+
+`quote()` capture le code sans l'exécuter.
+
+On peut ensuite remplacer `x` :
+
+```{r}
+substitute2(
+  expr,
+  env = list(x = "salaire")
+)
+```
+
+Le résultat est l'expression `mean(salaire)`. Aucun calcul n'a encore été effectué.
+
+## Examiner puis utiliser une expression
+
+On peut conserver l'expression transformée dans un objet R :
+
+```{r}
+expr <- substitute2(
+  mean(x),
+  env = list(x = "salaire")
+)
+
+expr
+```
+
+`expr` contient maintenant le code `mean(salaire)`. La substitution est terminée, mais le calcul n'a pas encore été effectué. Pour les usages courants, il est généralement plus simple de laisser `data.table` faire les deux étapes :
+
+```{r}
+DT[, mean(x), env = list(x = "salaire")]
+```
+
+Cet exemple permet de distinguer la construction d'une expression de son évaluation.
+
+# Bonnes pratiques
+
+## 1. Ne pas rendre tout dynamique sans raison
+
+Si le nom de la colonne est connu, écrivez simplement :
+
+``` r
+DT[, mean(salaire)]
+```
+
+C'est plus direct et plus facile à lire.
+
+## 2. Choisir la méthode la plus simple
+
+- Un vecteur de noms de colonnes : souvent `.SDcols` ou `..`.
+- Un nom de colonne à insérer dans une expression : `env`.
+- Un accès ponctuel par chaîne : `get()` peut suffire.
+
+## 3. Utiliser `copy()` avant une modification si l'original doit être conservé
+
+`:=` modifie le tableau par référence.
+
+```{r}
+DT_copie <- copy(DT)
+DT_copie[, nouvelle_colonne := age * 2]
+
+# DT ne contient pas nouvelle_colonne
+"nouvelle_colonne" %in% names(DT)
+```
+
+## 4. Vérifier les noms de colonnes reçus
+
+Dans une fonction réutilisable, on peut contrôler qu'une colonne existe :
+
+```{r}
+verifier_colonne <- function(data, variable) {
+  if (!variable %in% names(data)) {
+    stop("La colonne '", variable, "' n'existe pas dans le tableau.")
+  }
+  invisible(TRUE)
+}
+
+verifier_colonne(DT, "salaire")
+```
+
+## 5. Utiliser `verbose = TRUE` pour comprendre
+
+`verbose = TRUE` permet d'obtenir des informations de diagnostic sur le traitement effectué par `data.table`.
+
+```{r}
+DT[, mean(x), env = list(x = "salaire"), verbose = TRUE]
+```
+
+# Atelier : écrire des fonctions réutilisables
+
+Les exercices suivants peuvent être exécutés indépendamment, après les sections précédentes.
+
+## Exercice 1 — Une moyenne dynamique
+
+Écrire une fonction `calculer_moyenne(data, variable)` qui calcule la moyenne de la colonne indiquée.
+
+```{r}
+calculer_moyenne <- function(data, variable) {
+  data[, mean(x, na.rm = TRUE), env = list(x = variable)]
+}
+
+calculer_moyenne(DT, "age")
+calculer_moyenne(DT, "salaire")
+```
+
+## Exercice 2 — Filtrer avec un seuil dynamique
+
+```{r}
+filtrer <- function(data, variable, seuil) {
+  data[x >= seuil, , env = list(x = variable, seuil = seuil)]
+}
+
+filtrer(DT, "age", 40)
+filtrer(DT, "salaire", 5500)
+```
+
+## Exercice 3 — Une moyenne par groupe
+
+```{r}
+moyenne_groupe <- function(data, variable, groupe) {
+  data[
+    ,
+    .(moyenne = mean(x, na.rm = TRUE)),
+    by = groupe,
+    env = list(x = variable, groupe = groupe)
+  ]
+}
+
+moyenne_groupe(DT, "salaire", "sexe")
+moyenne_groupe(DT, "age", "formation")
+```
+
+## Exercice 4 — Transformer plusieurs colonnes
+
+Appliquer une transformation à plusieurs colonnes numériques :
+
+```{r}
+colonnes <- c("age", "salaire")
+
+DT_transforme <- copy(DT)
+DT_transforme[
+  ,
+  (colonnes) := lapply(.SD, function(x) x * 2),
+  .SDcols = colonnes
+]
+
+DT_transforme[, ..colonnes]
+```
+
+## Exercice 5 — Ajouter un indicateur de manière générique
+
+```{r}
+ajouter_flag <- function(data, variable, seuil, nom_flag) {
+  data[
+    ,
+    (nom_flag) := as.integer(x >= seuil),
+    env = list(
+      x = variable,
+      seuil = seuil
+    )
+  ]
+}
+
+DT_flags <- copy(DT)
+ajouter_flag(DT_flags, "salaire", 5500, "flag_salaire")
+DT_flags[, .(id, salaire, flag_salaire)]
+```
+
+# Synthèse
+
+La programmation avec `data.table` devient beaucoup plus simple si l'on garde en tête les quatre idées suivantes.
+
+1.  **Les données** sont dans le tableau (`DT`).
+2.  **Les noms de colonnes** peuvent être transmis sous forme de chaînes (`"salaire"`).
+3.  **`env`** fournit les substitutions nécessaires pour construire une expression à partir de ces noms et valeurs.
+4.  **`substitute2()`** effectue la substitution ; `data.table` évalue ensuite l'expression dans le contexte du tableau.
+
+Le point essentiel :
+
+``` r
+variable <- "salaire"
+
+DT[
+  ,
+  mean(x),
+  env = list(x = variable)
+]
+```
+
+Cela signifie : « Dans l'expression `mean(x)`, remplace `x` par le nom de colonne contenu dans `variable`, puis calcule la moyenne de cette colonne dans `DT`. »
+
+# Références
+
+- Documentation officielle, *Programming on data.table* : <https://r-datatable.com/articles/datatable-programming.html>
+- Documentation officielle, *Introduction to data.table* : <https://r-datatable.com/articles/datatable-intro.html>
+- Référence de `substitute2()` : `?substitute2`
+- Référence de `data.table` : `?data.table`
