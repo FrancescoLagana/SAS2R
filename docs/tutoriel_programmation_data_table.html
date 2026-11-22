@@ -105,6 +105,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#voir-la-substitution-sans-calculer-la-moyenne" id="toc-voir-la-substitution-sans-calculer-la-moyenne" class="nav-link" data-scroll-target="#voir-la-substitution-sans-calculer-la-moyenne"><span class="header-section-number">6.2</span> Voir la substitution sans calculer la moyenne</a></li>
   <li><a href="#pourquoi-écrire-x-variable" id="toc-pourquoi-écrire-x-variable" class="nav-link" data-scroll-target="#pourquoi-écrire-x-variable"><span class="header-section-number">6.3</span> Pourquoi écrire <code>x = variable</code> ?</a></li>
   <li><a href="#noms-de-colonnes-et-valeurs-une-distinction-cruciale" id="toc-noms-de-colonnes-et-valeurs-une-distinction-cruciale" class="nav-link" data-scroll-target="#noms-de-colonnes-et-valeurs-une-distinction-cruciale"><span class="header-section-number">6.4</span> Noms de colonnes et valeurs : une distinction cruciale</a></li>
+  <li><a href="#distinguer-un-nom-de-colonne-dune-valeur-littérale-avec-i" id="toc-distinguer-un-nom-de-colonne-dune-valeur-littérale-avec-i" class="nav-link" data-scroll-target="#distinguer-un-nom-de-colonne-dune-valeur-littérale-avec-i"><span class="header-section-number">6.5</span> Distinguer un nom de colonne d’une valeur littérale avec <code>I()</code></a>
+  <ul class="collapse">
+  <li><a href="#exemple-calculer-le-salaire-moyen-des-femmes" id="toc-exemple-calculer-le-salaire-moyen-des-femmes" class="nav-link" data-scroll-target="#exemple-calculer-le-salaire-moyen-des-femmes"><span class="header-section-number">6.5.1</span> Exemple : calculer le salaire moyen des femmes</a></li>
+  <li><a href="#et-pour-calculer-le-salaire-moyen-des-hommes" id="toc-et-pour-calculer-le-salaire-moyen-des-hommes" class="nav-link" data-scroll-target="#et-pour-calculer-le-salaire-moyen-des-hommes"><span class="header-section-number">6.5.2</span> Et pour calculer le salaire moyen des hommes ?</a></li>
+  <li><a href="#généraliser-avec-une-fonction" id="toc-généraliser-avec-une-fonction" class="nav-link" data-scroll-target="#généraliser-avec-une-fonction"><span class="header-section-number">6.5.3</span> Généraliser avec une fonction</a></li>
+  <li><a href="#à-retenir" id="toc-à-retenir" class="nav-link" data-scroll-target="#à-retenir"><span class="header-section-number">6.5.4</span> À retenir</a></li>
+  </ul></li>
   </ul></li>
   <li><a href="#programmer-les-trois-parties-i-j-et-by" id="toc-programmer-les-trois-parties-i-j-et-by" class="nav-link" data-scroll-target="#programmer-les-trois-parties-i-j-et-by"><span class="header-section-number">7</span> Programmer les trois parties i, j et by</a>
   <ul class="collapse">
@@ -379,7 +386,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Le résultat affiché est une expression, pas le nombre 5500. La substitution modifie le code ; elle ne calcule pas encore la moyenne.</p>
 <p>On peut aussi vérifier le résultat numérique :</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>DT[, <span class="fu">mean</span>(x), env <span class="ot">=</span> <span class="fu">list</span>(<span class="at">x =</span> <span class="st">"salaire"</span>)]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>var <span class="ot">&lt;-</span> <span class="st">"salaire"</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>DT[, <span class="fu">mean</span>(x), env <span class="ot">=</span> <span class="fu">list</span>(<span class="at">x =</span> <span class="st">"salaire"</span>)]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>[1] 5487.5</code></pre>
 </div>
@@ -434,6 +442,131 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <pre><code>[1] 5325</code></pre>
 </div>
 </div>
+</section>
+<section id="distinguer-un-nom-de-colonne-dune-valeur-littérale-avec-i" class="level2" data-number="6.5">
+<h2 data-number="6.5" class="anchored" data-anchor-id="distinguer-un-nom-de-colonne-dune-valeur-littérale-avec-i"><span class="header-section-number">6.5</span> Distinguer un nom de colonne d’une valeur littérale avec <code>I()</code></h2>
+<p>Lorsqu’on utilise <code>env</code> avec <code>substitute2()</code>, il est important de distinguer deux situations :</p>
+<ul>
+<li>Un <strong>nom de colonne</strong> : par exemple <code>"salaire"</code>.</li>
+<li>Une <strong>valeur littérale</strong> : par exemple <code>"F"</code> ou <code>"M"</code>.</li>
+</ul>
+<p>Par défaut, <code>substitute2()</code> transforme les chaînes de caractères fournies dans <code>env</code> en symboles R. Cela permet de désigner dynamiquement les colonnes d’une <code>data.table</code>.</p>
+<p>Cependant, lorsque l’on souhaite utiliser une chaîne de caractères comme valeur littérale, il faut empêcher cette transformation. C’est précisément le rôle de <code>I()</code>.</p>
+<section id="exemple-calculer-le-salaire-moyen-des-femmes" class="level3" data-number="6.5.1">
+<h3 data-number="6.5.1" class="anchored" data-anchor-id="exemple-calculer-le-salaire-moyen-des-femmes"><span class="header-section-number">6.5.1</span> Exemple : calculer le salaire moyen des femmes</h3>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb35"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a>DT <span class="ot">&lt;-</span> <span class="fu">data.table</span>(</span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">sexe =</span> <span class="fu">c</span>(<span class="st">"F"</span>, <span class="st">"M"</span>, <span class="st">"F"</span>, <span class="st">"M"</span>),</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">salaire =</span> <span class="fu">c</span>(<span class="dv">4000</span>, <span class="dv">5000</span>, <span class="dv">4500</span>, <span class="dv">6000</span>)</span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a>DT[</span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a>  sexe <span class="sc">==</span> valeur,</span>
+<span id="cb35-8"><a href="#cb35-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mean</span>(x),</span>
+<span id="cb35-9"><a href="#cb35-9" aria-hidden="true" tabindex="-1"></a>  env <span class="ot">=</span> <span class="fu">list</span>(</span>
+<span id="cb35-10"><a href="#cb35-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">"salaire"</span>,</span>
+<span id="cb35-11"><a href="#cb35-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">valeur =</span> <span class="fu">I</span>(<span class="st">"F"</span>)</span>
+<span id="cb35-12"><a href="#cb35-12" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb35-13"><a href="#cb35-13" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 4250</code></pre>
+</div>
+</div>
+<p>Comprenons les deux substitutions :</p>
+<ul>
+<li><code>x = "salaire"</code> : <code>"salaire"</code> est transformé en symbole <code>salaire</code>, c’est-à-dire en nom de colonne.</li>
+<li><code>valeur = I("F")</code> : <code>I()</code> empêche la transformation de <code>"F"</code> en symbole. La chaîne reste une valeur littérale.</li>
+</ul>
+<p>Après substitution, l’expression est équivalente à :</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb37"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>DT[</span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>  sexe <span class="sc">==</span> <span class="st">"F"</span>,</span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mean</span>(salaire)</span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Le résultat est <code>4250</code>.</p>
+</section>
+<section id="et-pour-calculer-le-salaire-moyen-des-hommes" class="level3" data-number="6.5.2">
+<h3 data-number="6.5.2" class="anchored" data-anchor-id="et-pour-calculer-le-salaire-moyen-des-hommes"><span class="header-section-number">6.5.2</span> Et pour calculer le salaire moyen des hommes ?</h3>
+<p>Il suffit de remplacer <code>"F"</code> par <code>"M"</code> :</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb38"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>DT[</span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>  sexe <span class="sc">==</span> valeur,</span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mean</span>(x),</span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a>  env <span class="ot">=</span> <span class="fu">list</span>(</span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">"salaire"</span>,</span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">valeur =</span> <span class="fu">I</span>(<span class="st">"M"</span>)</span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb38-8"><a href="#cb38-8" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 5500</code></pre>
+</div>
+</div>
+<p>Le résultat est <code>5500</code>.</p>
+</section>
+<section id="généraliser-avec-une-fonction" class="level3" data-number="6.5.3">
+<h3 data-number="6.5.3" class="anchored" data-anchor-id="généraliser-avec-une-fonction"><span class="header-section-number">6.5.3</span> Généraliser avec une fonction</h3>
+<p>On peut rendre le code réutilisable en passant le nom de la variable, le nom de la variable de regroupement et la catégorie recherchée comme arguments :</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb40"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a>calcule_moyenne <span class="ot">&lt;-</span> <span class="cf">function</span>(data, variable, groupe, categorie) {</span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>  data[</span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a>    x <span class="sc">==</span> valeur,</span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mean</span>(y),</span>
+<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a>    env <span class="ot">=</span> <span class="fu">list</span>(</span>
+<span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a>      <span class="at">x =</span> groupe,</span>
+<span id="cb40-7"><a href="#cb40-7" aria-hidden="true" tabindex="-1"></a>      <span class="at">valeur =</span> <span class="fu">I</span>(categorie),</span>
+<span id="cb40-8"><a href="#cb40-8" aria-hidden="true" tabindex="-1"></a>      <span class="at">y =</span> variable</span>
+<span id="cb40-9"><a href="#cb40-9" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb40-10"><a href="#cb40-10" aria-hidden="true" tabindex="-1"></a>  ]</span>
+<span id="cb40-11"><a href="#cb40-11" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>On peut alors appeler la fonction de différentes manières :</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb41"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Salaire moyen des femmes</span></span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a><span class="fu">calcule_moyenne</span>(DT, <span class="st">"salaire"</span>, <span class="st">"sexe"</span>, <span class="st">"F"</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 4250</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb43"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Salaire moyen des hommes</span></span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a><span class="fu">calcule_moyenne</span>(DT, <span class="st">"salaire"</span>, <span class="st">"sexe"</span>, <span class="st">"M"</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 5500</code></pre>
+</div>
+</div>
+<p>La fonction ne doit pas être modifiée : seuls les arguments changent.</p>
+</section>
+<section id="à-retenir" class="level3" data-number="6.5.4">
+<h3 data-number="6.5.4" class="anchored" data-anchor-id="à-retenir"><span class="header-section-number">6.5.4</span> À retenir</h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Dans <code>env</code></th>
+<th>Interprétation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>x = "salaire"</code></td>
+<td>Le texte est transformé en symbole : nom de colonne <code>salaire</code></td>
+</tr>
+<tr class="even">
+<td><code>valeur = I("F")</code></td>
+<td>La chaîne <code>"F"</code> reste une valeur littérale</td>
+</tr>
+<tr class="odd">
+<td><code>valeur = I("M")</code></td>
+<td>La chaîne <code>"M"</code> reste une valeur littérale</td>
+</tr>
+<tr class="even">
+<td><code>seuil = 4500</code></td>
+<td>La valeur numérique reste numérique, sans besoin de <code>I()</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Règle pratique :</strong> utiliser <code>I()</code> lorsqu’une chaîne de caractères doit être interprétée comme une valeur et non comme le nom d’une colonne.</p>
+<p>Cette distinction est essentielle pour écrire des fonctions <code>data.table</code> programmatiques, dans lesquelles les noms de colonnes et les valeurs à rechercher sont fournis dynamiquement.</p>
 <p>À retenir :</p>
 <ul>
 <li><code>"salaire"</code> dans <code>env</code> devient normalement un nom de colonne ;</li>
@@ -442,23 +575,44 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </ul>
 </section>
 </section>
+</section>
 <section id="programmer-les-trois-parties-i-j-et-by" class="level1" data-number="7">
 <h1 data-number="7"><span class="header-section-number">7</span> Programmer les trois parties i, j et by</h1>
 <section id="filtrer-avec-un-nom-de-colonne-variable" class="level2" data-number="7.1">
 <h2 data-number="7.1" class="anchored" data-anchor-id="filtrer-avec-un-nom-de-colonne-variable"><span class="header-section-number">7.1</span> Filtrer avec un nom de colonne variable</h2>
+<p>On reprend le dataset originaire:</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb35"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a>filtrer_superieur <span class="ot">&lt;-</span> <span class="cf">function</span>(data, variable, seuil) {</span>
-<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>  data[</span>
-<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>    x <span class="sc">&gt;</span> seuil,</span>
-<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a>    ,</span>
-<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a>    env <span class="ot">=</span> <span class="fu">list</span>(</span>
-<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a>      <span class="at">x =</span> variable,</span>
-<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a>      <span class="at">seuil =</span> seuil</span>
-<span id="cb35-8"><a href="#cb35-8" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb35-9"><a href="#cb35-9" aria-hidden="true" tabindex="-1"></a>  ]</span>
-<span id="cb35-10"><a href="#cb35-10" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb35-11"><a href="#cb35-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb35-12"><a href="#cb35-12" aria-hidden="true" tabindex="-1"></a><span class="fu">filtrer_superieur</span>(DT, <span class="st">"salaire"</span>, <span class="dv">5000</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb45"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a>DT <span class="ot">&lt;-</span> <span class="fu">data.table</span>(</span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">id =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">8</span>,</span>
+<span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">sexe =</span> <span class="fu">c</span>(<span class="st">"F"</span>, <span class="st">"M"</span>, <span class="st">"F"</span>, <span class="st">"M"</span>, <span class="st">"F"</span>, <span class="st">"M"</span>, <span class="st">"F"</span>, <span class="st">"M"</span>),</span>
+<span id="cb45-4"><a href="#cb45-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">age =</span> <span class="fu">c</span>(<span class="dv">24</span>, <span class="dv">31</span>, <span class="dv">29</span>, <span class="dv">42</span>, <span class="dv">36</span>, <span class="dv">27</span>, <span class="dv">51</span>, <span class="dv">45</span>),</span>
+<span id="cb45-5"><a href="#cb45-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">salaire =</span> <span class="fu">c</span>(<span class="dv">4200</span>, <span class="dv">5100</span>, <span class="dv">4600</span>, <span class="dv">6200</span>, <span class="dv">5400</span>, <span class="dv">4800</span>, <span class="dv">7100</span>, <span class="dv">6500</span>),</span>
+<span id="cb45-6"><a href="#cb45-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">formation =</span> <span class="fu">c</span>(<span class="st">"CFC"</span>, <span class="st">"HES"</span>, <span class="st">"Uni"</span>, <span class="st">"CFC"</span>, <span class="st">"HES"</span>, <span class="st">"Uni"</span>, <span class="st">"Uni"</span>, <span class="st">"HES"</span>),</span>
+<span id="cb45-7"><a href="#cb45-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">actif =</span> <span class="fu">c</span>(<span class="cn">TRUE</span>, <span class="cn">TRUE</span>, <span class="cn">TRUE</span>, <span class="cn">FALSE</span>, <span class="cn">TRUE</span>, <span class="cn">TRUE</span>, <span class="cn">FALSE</span>, <span class="cn">TRUE</span>)</span>
+<span id="cb45-8"><a href="#cb45-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb45-9"><a href="#cb45-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-10"><a href="#cb45-10" aria-hidden="true" tabindex="-1"></a>DT</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<div data-pagedtable="false">
+  <script data-pagedtable-source="" type="application/json">
+{"columns":[{"label":["id"],"name":[1],"type":["int"],"align":["right"]},{"label":["sexe"],"name":[2],"type":["chr"],"align":["left"]},{"label":["age"],"name":[3],"type":["dbl"],"align":["right"]},{"label":["salaire"],"name":[4],"type":["dbl"],"align":["right"]},{"label":["formation"],"name":[5],"type":["chr"],"align":["left"]},{"label":["actif"],"name":[6],"type":["lgl"],"align":["right"]}],"data":[{"1":"1","2":"F","3":"24","4":"4200","5":"CFC","6":"TRUE"},{"1":"2","2":"M","3":"31","4":"5100","5":"HES","6":"TRUE"},{"1":"3","2":"F","3":"29","4":"4600","5":"Uni","6":"TRUE"},{"1":"4","2":"M","3":"42","4":"6200","5":"CFC","6":"FALSE"},{"1":"5","2":"F","3":"36","4":"5400","5":"HES","6":"TRUE"},{"1":"6","2":"M","3":"27","4":"4800","5":"Uni","6":"TRUE"},{"1":"7","2":"F","3":"51","4":"7100","5":"Uni","6":"FALSE"},{"1":"8","2":"M","3":"45","4":"6500","5":"HES","6":"TRUE"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+  </script>
+</div>
+</div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb46"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a>filtrer_superieur <span class="ot">&lt;-</span> <span class="cf">function</span>(data, variable, seuil) {</span>
+<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a>  data[</span>
+<span id="cb46-3"><a href="#cb46-3" aria-hidden="true" tabindex="-1"></a>    x <span class="sc">&gt;</span> seuil,</span>
+<span id="cb46-4"><a href="#cb46-4" aria-hidden="true" tabindex="-1"></a>    ,</span>
+<span id="cb46-5"><a href="#cb46-5" aria-hidden="true" tabindex="-1"></a>    env <span class="ot">=</span> <span class="fu">list</span>(</span>
+<span id="cb46-6"><a href="#cb46-6" aria-hidden="true" tabindex="-1"></a>      <span class="at">x =</span> variable,</span>
+<span id="cb46-7"><a href="#cb46-7" aria-hidden="true" tabindex="-1"></a>      <span class="at">seuil =</span> seuil</span>
+<span id="cb46-8"><a href="#cb46-8" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb46-9"><a href="#cb46-9" aria-hidden="true" tabindex="-1"></a>  ]</span>
+<span id="cb46-10"><a href="#cb46-10" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb46-11"><a href="#cb46-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb46-12"><a href="#cb46-12" aria-hidden="true" tabindex="-1"></a><span class="fu">filtrer_superieur</span>(DT, <span class="st">"salaire"</span>, <span class="dv">5000</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div data-pagedtable="false">
   <script data-pagedtable-source="" type="application/json">
@@ -466,7 +620,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </script>
 </div>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb36"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="fu">filtrer_superieur</span>(DT, <span class="st">"age"</span>, <span class="dv">35</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb47"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="fu">filtrer_superieur</span>(DT, <span class="st">"age"</span>, <span class="dv">35</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div data-pagedtable="false">
   <script data-pagedtable-source="" type="application/json">
@@ -480,19 +634,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="calculer-une-statistique-par-groupe" class="level2" data-number="7.2">
 <h2 data-number="7.2" class="anchored" data-anchor-id="calculer-une-statistique-par-groupe"><span class="header-section-number">7.2</span> Calculer une statistique par groupe</h2>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb37"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>moyenne_par_groupe <span class="ot">&lt;-</span> <span class="cf">function</span>(data, variable, groupe) {</span>
-<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>  data[</span>
-<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>    ,</span>
-<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mean</span>(x),</span>
-<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a>    by <span class="ot">=</span> groupe,</span>
-<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a>    env <span class="ot">=</span> <span class="fu">list</span>(</span>
-<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a>      <span class="at">x =</span> variable,</span>
-<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a>      <span class="at">groupe =</span> groupe</span>
-<span id="cb37-9"><a href="#cb37-9" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb37-10"><a href="#cb37-10" aria-hidden="true" tabindex="-1"></a>  ]</span>
-<span id="cb37-11"><a href="#cb37-11" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb37-12"><a href="#cb37-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb37-13"><a href="#cb37-13" aria-hidden="true" tabindex="-1"></a><span class="fu">moyenne_par_groupe</span>(DT, <span class="st">"salaire"</span>, <span class="st">"sexe"</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb48"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a>moyenne_par_groupe <span class="ot">&lt;-</span> <span class="cf">function</span>(data, variable, groupe) {</span>
+<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a>  data[</span>
+<span id="cb48-3"><a href="#cb48-3" aria-hidden="true" tabindex="-1"></a>    ,</span>
+<span id="cb48-4"><a href="#cb48-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mean</span>(x),</span>
+<span id="cb48-5"><a href="#cb48-5" aria-hidden="true" tabindex="-1"></a>    by <span class="ot">=</span> groupe,</span>
+<span id="cb48-6"><a href="#cb48-6" aria-hidden="true" tabindex="-1"></a>    env <span class="ot">=</span> <span class="fu">list</span>(</span>
+<span id="cb48-7"><a href="#cb48-7" aria-hidden="true" tabindex="-1"></a>      <span class="at">x =</span> variable,</span>
+<span id="cb48-8"><a href="#cb48-8" aria-hidden="true" tabindex="-1"></a>      <span class="at">groupe =</span> groupe</span>
+<span id="cb48-9"><a href="#cb48-9" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb48-10"><a href="#cb48-10" aria-hidden="true" tabindex="-1"></a>  ]</span>
+<span id="cb48-11"><a href="#cb48-11" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb48-12"><a href="#cb48-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb48-13"><a href="#cb48-13" aria-hidden="true" tabindex="-1"></a><span class="fu">moyenne_par_groupe</span>(DT, <span class="st">"salaire"</span>, <span class="st">"sexe"</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div data-pagedtable="false">
   <script data-pagedtable-source="" type="application/json">
@@ -500,7 +654,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </script>
 </div>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb38"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="fu">moyenne_par_groupe</span>(DT, <span class="st">"age"</span>, <span class="st">"formation"</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb49"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="fu">moyenne_par_groupe</span>(DT, <span class="st">"age"</span>, <span class="st">"formation"</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div data-pagedtable="false">
   <script data-pagedtable-source="" type="application/json">
@@ -519,22 +673,22 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 data-number="7.3" class="anchored" data-anchor-id="renommer-le-résultat"><span class="header-section-number">7.3</span> Renommer le résultat</h2>
 <p>Pour donner un nom explicite à la colonne calculée, on peut construire une expression avec <code>env</code> :</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb39"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a>moyenne_par_groupe_nommee <span class="ot">&lt;-</span> <span class="cf">function</span>(data, variable, groupe,</span>
-<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>                                      <span class="at">nom_resultat =</span> <span class="st">"moyenne"</span>) {</span>
-<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a>  data[</span>
-<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a>    ,</span>
-<span id="cb39-5"><a href="#cb39-5" aria-hidden="true" tabindex="-1"></a>    (nom_resultat) <span class="sc">:</span><span class="er">=</span> <span class="fu">mean</span>(x),</span>
-<span id="cb39-6"><a href="#cb39-6" aria-hidden="true" tabindex="-1"></a>    by <span class="ot">=</span> groupe,</span>
-<span id="cb39-7"><a href="#cb39-7" aria-hidden="true" tabindex="-1"></a>    env <span class="ot">=</span> <span class="fu">list</span>(</span>
-<span id="cb39-8"><a href="#cb39-8" aria-hidden="true" tabindex="-1"></a>      <span class="at">x =</span> variable,</span>
-<span id="cb39-9"><a href="#cb39-9" aria-hidden="true" tabindex="-1"></a>      <span class="at">groupe =</span> groupe</span>
-<span id="cb39-10"><a href="#cb39-10" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb39-11"><a href="#cb39-11" aria-hidden="true" tabindex="-1"></a>  ][, <span class="fu">c</span>(groupe, nom_resultat), with <span class="ot">=</span> <span class="cn">FALSE</span>]</span>
-<span id="cb39-12"><a href="#cb39-12" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb39-13"><a href="#cb39-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb39-14"><a href="#cb39-14" aria-hidden="true" tabindex="-1"></a><span class="co"># On travaille sur une copie pour conserver DT intact.</span></span>
-<span id="cb39-15"><a href="#cb39-15" aria-hidden="true" tabindex="-1"></a>DT_test <span class="ot">&lt;-</span> <span class="fu">copy</span>(DT)</span>
-<span id="cb39-16"><a href="#cb39-16" aria-hidden="true" tabindex="-1"></a><span class="fu">moyenne_par_groupe_nommee</span>(DT_test, <span class="st">"salaire"</span>, <span class="st">"sexe"</span>, <span class="st">"salaire_moyen"</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb50"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a>moyenne_par_groupe_nommee <span class="ot">&lt;-</span> <span class="cf">function</span>(data, variable, groupe,</span>
+<span id="cb50-2"><a href="#cb50-2" aria-hidden="true" tabindex="-1"></a>                                      <span class="at">nom_resultat =</span> <span class="st">"moyenne"</span>) {</span>
+<span id="cb50-3"><a href="#cb50-3" aria-hidden="true" tabindex="-1"></a>  data[</span>
+<span id="cb50-4"><a href="#cb50-4" aria-hidden="true" tabindex="-1"></a>    ,</span>
+<span id="cb50-5"><a href="#cb50-5" aria-hidden="true" tabindex="-1"></a>    (nom_resultat) <span class="sc">:</span><span class="er">=</span> <span class="fu">mean</span>(x),</span>
+<span id="cb50-6"><a href="#cb50-6" aria-hidden="true" tabindex="-1"></a>    by <span class="ot">=</span> groupe,</span>
+<span id="cb50-7"><a href="#cb50-7" aria-hidden="true" tabindex="-1"></a>    env <span class="ot">=</span> <span class="fu">list</span>(</span>
+<span id="cb50-8"><a href="#cb50-8" aria-hidden="true" tabindex="-1"></a>      <span class="at">x =</span> variable,</span>
+<span id="cb50-9"><a href="#cb50-9" aria-hidden="true" tabindex="-1"></a>      <span class="at">groupe =</span> groupe</span>
+<span id="cb50-10"><a href="#cb50-10" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb50-11"><a href="#cb50-11" aria-hidden="true" tabindex="-1"></a>  ][, <span class="fu">c</span>(groupe, nom_resultat), with <span class="ot">=</span> <span class="cn">FALSE</span>]</span>
+<span id="cb50-12"><a href="#cb50-12" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb50-13"><a href="#cb50-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb50-14"><a href="#cb50-14" aria-hidden="true" tabindex="-1"></a><span class="co"># On travaille sur une copie pour conserver DT intact.</span></span>
+<span id="cb50-15"><a href="#cb50-15" aria-hidden="true" tabindex="-1"></a>DT_test <span class="ot">&lt;-</span> <span class="fu">copy</span>(DT)</span>
+<span id="cb50-16"><a href="#cb50-16" aria-hidden="true" tabindex="-1"></a><span class="fu">moyenne_par_groupe_nommee</span>(DT_test, <span class="st">"salaire"</span>, <span class="st">"sexe"</span>, <span class="st">"salaire_moyen"</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div data-pagedtable="false">
   <script data-pagedtable-source="" type="application/json">
@@ -545,9 +699,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 <p>Cette version illustre aussi la différence entre le nom utilisé dans une expression et le nom d’une colonne créée par affectation. Une autre façon, souvent plus lisible, consiste à utiliser <code>setnames()</code> après le calcul :</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb40"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a>resultat <span class="ot">&lt;-</span> DT[, .(<span class="at">moyenne =</span> <span class="fu">mean</span>(salaire)), by <span class="ot">=</span> sexe]</span>
-<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a><span class="fu">setnames</span>(resultat, <span class="st">"moyenne"</span>, <span class="st">"salaire_moyen"</span>)</span>
-<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a>resultat</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb51"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a>resultat <span class="ot">&lt;-</span> DT[, .(<span class="at">moyenne =</span> <span class="fu">mean</span>(salaire)), by <span class="ot">=</span> sexe]</span>
+<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a><span class="fu">setnames</span>(resultat, <span class="st">"moyenne"</span>, <span class="st">"salaire_moyen"</span>)</span>
+<span id="cb51-3"><a href="#cb51-3" aria-hidden="true" tabindex="-1"></a>resultat</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div data-pagedtable="false">
   <script data-pagedtable-source="" type="application/json">
@@ -564,10 +718,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 data-number="8.1" class="anchored" data-anchor-id="le-principe-de"><span class="header-section-number">8.1</span> Le principe de <code>:=</code></h2>
 <p>L’opérateur <code>:=</code> ajoute ou modifie une colonne par référence, c’est-à-dire sans devoir réaffecter le tableau entier.</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb41"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a>DT_demo <span class="ot">&lt;-</span> <span class="fu">copy</span>(DT)</span>
-<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>DT_demo[, salaire_annuel <span class="sc">:</span><span class="er">=</span> salaire <span class="sc">*</span> <span class="dv">12</span>]</span>
-<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>DT_demo[, salaire_annuel]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb52"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a>DT_demo <span class="ot">&lt;-</span> <span class="fu">copy</span>(DT)</span>
+<span id="cb52-2"><a href="#cb52-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb52-3"><a href="#cb52-3" aria-hidden="true" tabindex="-1"></a>DT_demo[, salaire_annuel <span class="sc">:</span><span class="er">=</span> salaire <span class="sc">*</span> <span class="dv">12</span>]</span>
+<span id="cb52-4"><a href="#cb52-4" aria-hidden="true" tabindex="-1"></a>DT_demo[, salaire_annuel]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>[1] 50400 61200 55200 74400 64800 57600 85200 78000</code></pre>
 </div>
@@ -577,19 +731,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 data-number="8.2" class="anchored" data-anchor-id="nom-de-la-nouvelle-colonne-choisi-dynamiquement"><span class="header-section-number">8.2</span> Nom de la nouvelle colonne choisi dynamiquement</h2>
 <p>La syntaxe <code>(nouveau_nom) := ...</code> indique que le nom de la colonne est contenu dans l’objet <code>nouveau_nom</code>.</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb43"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a>creer_colonne <span class="ot">&lt;-</span> <span class="cf">function</span>(data, variable, nouveau_nom, <span class="at">facteur =</span> <span class="dv">1</span>) {</span>
-<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a>  data[</span>
-<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a>    ,</span>
-<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a>    (nouveau_nom) <span class="sc">:</span><span class="er">=</span> x <span class="sc">*</span> facteur,</span>
-<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a>    env <span class="ot">=</span> <span class="fu">list</span>(<span class="at">x =</span> variable)</span>
-<span id="cb43-6"><a href="#cb43-6" aria-hidden="true" tabindex="-1"></a>  ]</span>
-<span id="cb43-7"><a href="#cb43-7" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb43-8"><a href="#cb43-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb43-9"><a href="#cb43-9" aria-hidden="true" tabindex="-1"></a>DT_demo <span class="ot">&lt;-</span> <span class="fu">copy</span>(DT)</span>
-<span id="cb43-10"><a href="#cb43-10" aria-hidden="true" tabindex="-1"></a><span class="fu">creer_colonne</span>(DT_demo, <span class="st">"salaire"</span>, <span class="st">"salaire_annuel"</span>, <span class="dv">12</span>)</span>
-<span id="cb43-11"><a href="#cb43-11" aria-hidden="true" tabindex="-1"></a><span class="fu">creer_colonne</span>(DT_demo, <span class="st">"age"</span>, <span class="st">"age_en_mois"</span>, <span class="dv">12</span>)</span>
-<span id="cb43-12"><a href="#cb43-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb43-13"><a href="#cb43-13" aria-hidden="true" tabindex="-1"></a>DT_demo[, .(age, age_en_mois, salaire, salaire_annuel)]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb54"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb54-1"><a href="#cb54-1" aria-hidden="true" tabindex="-1"></a>creer_colonne <span class="ot">&lt;-</span> <span class="cf">function</span>(data, variable, nouveau_nom, <span class="at">facteur =</span> <span class="dv">1</span>) {</span>
+<span id="cb54-2"><a href="#cb54-2" aria-hidden="true" tabindex="-1"></a>  data[</span>
+<span id="cb54-3"><a href="#cb54-3" aria-hidden="true" tabindex="-1"></a>    ,</span>
+<span id="cb54-4"><a href="#cb54-4" aria-hidden="true" tabindex="-1"></a>    (nouveau_nom) <span class="sc">:</span><span class="er">=</span> x <span class="sc">*</span> facteur,</span>
+<span id="cb54-5"><a href="#cb54-5" aria-hidden="true" tabindex="-1"></a>    env <span class="ot">=</span> <span class="fu">list</span>(<span class="at">x =</span> variable)</span>
+<span id="cb54-6"><a href="#cb54-6" aria-hidden="true" tabindex="-1"></a>  ]</span>
+<span id="cb54-7"><a href="#cb54-7" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb54-8"><a href="#cb54-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb54-9"><a href="#cb54-9" aria-hidden="true" tabindex="-1"></a>DT_demo <span class="ot">&lt;-</span> <span class="fu">copy</span>(DT)</span>
+<span id="cb54-10"><a href="#cb54-10" aria-hidden="true" tabindex="-1"></a><span class="fu">creer_colonne</span>(DT_demo, <span class="st">"salaire"</span>, <span class="st">"salaire_annuel"</span>, <span class="dv">12</span>)</span>
+<span id="cb54-11"><a href="#cb54-11" aria-hidden="true" tabindex="-1"></a><span class="fu">creer_colonne</span>(DT_demo, <span class="st">"age"</span>, <span class="st">"age_en_mois"</span>, <span class="dv">12</span>)</span>
+<span id="cb54-12"><a href="#cb54-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb54-13"><a href="#cb54-13" aria-hidden="true" tabindex="-1"></a>DT_demo[, .(age, age_en_mois, salaire, salaire_annuel)]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div data-pagedtable="false">
   <script data-pagedtable-source="" type="application/json">
@@ -607,20 +761,20 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="ajouter-un-indicateur-conditionnel" class="level2" data-number="8.3">
 <h2 data-number="8.3" class="anchored" data-anchor-id="ajouter-un-indicateur-conditionnel"><span class="header-section-number">8.3</span> Ajouter un indicateur conditionnel</h2>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb44"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a>ajouter_indicateur <span class="ot">&lt;-</span> <span class="cf">function</span>(data, variable, seuil, nom_indicateur) {</span>
-<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a>  data[</span>
-<span id="cb44-3"><a href="#cb44-3" aria-hidden="true" tabindex="-1"></a>    ,</span>
-<span id="cb44-4"><a href="#cb44-4" aria-hidden="true" tabindex="-1"></a>    (nom_indicateur) <span class="sc">:</span><span class="er">=</span> x <span class="sc">&gt;=</span> seuil,</span>
-<span id="cb44-5"><a href="#cb44-5" aria-hidden="true" tabindex="-1"></a>    env <span class="ot">=</span> <span class="fu">list</span>(</span>
-<span id="cb44-6"><a href="#cb44-6" aria-hidden="true" tabindex="-1"></a>      <span class="at">x =</span> variable,</span>
-<span id="cb44-7"><a href="#cb44-7" aria-hidden="true" tabindex="-1"></a>      <span class="at">seuil =</span> seuil</span>
-<span id="cb44-8"><a href="#cb44-8" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb44-9"><a href="#cb44-9" aria-hidden="true" tabindex="-1"></a>  ]</span>
-<span id="cb44-10"><a href="#cb44-10" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb44-11"><a href="#cb44-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb44-12"><a href="#cb44-12" aria-hidden="true" tabindex="-1"></a>DT_demo <span class="ot">&lt;-</span> <span class="fu">copy</span>(DT)</span>
-<span id="cb44-13"><a href="#cb44-13" aria-hidden="true" tabindex="-1"></a><span class="fu">ajouter_indicateur</span>(DT_demo, <span class="st">"salaire"</span>, <span class="dv">5500</span>, <span class="st">"salaire_eleve"</span>)</span>
-<span id="cb44-14"><a href="#cb44-14" aria-hidden="true" tabindex="-1"></a>DT_demo[, .(id, salaire, salaire_eleve)]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb55"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb55-1"><a href="#cb55-1" aria-hidden="true" tabindex="-1"></a>ajouter_indicateur <span class="ot">&lt;-</span> <span class="cf">function</span>(data, variable, seuil, nom_indicateur) {</span>
+<span id="cb55-2"><a href="#cb55-2" aria-hidden="true" tabindex="-1"></a>  data[</span>
+<span id="cb55-3"><a href="#cb55-3" aria-hidden="true" tabindex="-1"></a>    ,</span>
+<span id="cb55-4"><a href="#cb55-4" aria-hidden="true" tabindex="-1"></a>    (nom_indicateur) <span class="sc">:</span><span class="er">=</span> x <span class="sc">&gt;=</span> seuil,</span>
+<span id="cb55-5"><a href="#cb55-5" aria-hidden="true" tabindex="-1"></a>    env <span class="ot">=</span> <span class="fu">list</span>(</span>
+<span id="cb55-6"><a href="#cb55-6" aria-hidden="true" tabindex="-1"></a>      <span class="at">x =</span> variable,</span>
+<span id="cb55-7"><a href="#cb55-7" aria-hidden="true" tabindex="-1"></a>      <span class="at">seuil =</span> seuil</span>
+<span id="cb55-8"><a href="#cb55-8" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb55-9"><a href="#cb55-9" aria-hidden="true" tabindex="-1"></a>  ]</span>
+<span id="cb55-10"><a href="#cb55-10" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb55-11"><a href="#cb55-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb55-12"><a href="#cb55-12" aria-hidden="true" tabindex="-1"></a>DT_demo <span class="ot">&lt;-</span> <span class="fu">copy</span>(DT)</span>
+<span id="cb55-13"><a href="#cb55-13" aria-hidden="true" tabindex="-1"></a><span class="fu">ajouter_indicateur</span>(DT_demo, <span class="st">"salaire"</span>, <span class="dv">5500</span>, <span class="st">"salaire_eleve"</span>)</span>
+<span id="cb55-14"><a href="#cb55-14" aria-hidden="true" tabindex="-1"></a>DT_demo[, .(id, salaire, salaire_eleve)]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div data-pagedtable="false">
   <script data-pagedtable-source="" type="application/json">
@@ -638,9 +792,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 data-number="9.1" class="anchored" data-anchor-id="méthode-simple-.sdcols"><span class="header-section-number">9.1</span> Méthode simple : <code>.SDcols</code></h2>
 <p><code>.SD</code> représente les colonnes sélectionnées pour l’opération en cours (en excluant les colonnes de regroupement).</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb45"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a>colonnes <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"age"</span>, <span class="st">"salaire"</span>)</span>
-<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a>DT[, .SD, .SDcols <span class="ot">=</span> colonnes]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb56"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a>colonnes <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"age"</span>, <span class="st">"salaire"</span>)</span>
+<span id="cb56-2"><a href="#cb56-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb56-3"><a href="#cb56-3" aria-hidden="true" tabindex="-1"></a>DT[, .SD, .SDcols <span class="ot">=</span> colonnes]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div data-pagedtable="false">
   <script data-pagedtable-source="" type="application/json">
@@ -651,7 +805,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 <p>Pour calculer la moyenne de plusieurs colonnes :</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb46"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a>DT[, <span class="fu">lapply</span>(.SD, mean), .SDcols <span class="ot">=</span> colonnes]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb57"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb57-1"><a href="#cb57-1" aria-hidden="true" tabindex="-1"></a>DT[, <span class="fu">lapply</span>(.SD, mean), .SDcols <span class="ot">=</span> colonnes]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div data-pagedtable="false">
   <script data-pagedtable-source="" type="application/json">
@@ -662,11 +816,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 <p>Pour calculer plusieurs statistiques :</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb47"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a>DT[</span>
-<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a>  ,</span>
-<span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">lapply</span>(.SD, <span class="cf">function</span>(x) <span class="fu">c</span>(<span class="at">moyenne =</span> <span class="fu">mean</span>(x), <span class="at">minimum =</span> <span class="fu">min</span>(x))),</span>
-<span id="cb47-4"><a href="#cb47-4" aria-hidden="true" tabindex="-1"></a>  .SDcols <span class="ot">=</span> colonnes</span>
-<span id="cb47-5"><a href="#cb47-5" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb58"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb58-1"><a href="#cb58-1" aria-hidden="true" tabindex="-1"></a>DT[</span>
+<span id="cb58-2"><a href="#cb58-2" aria-hidden="true" tabindex="-1"></a>  ,</span>
+<span id="cb58-3"><a href="#cb58-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">lapply</span>(.SD, <span class="cf">function</span>(x) <span class="fu">c</span>(<span class="at">moyenne =</span> <span class="fu">mean</span>(x), <span class="at">minimum =</span> <span class="fu">min</span>(x))),</span>
+<span id="cb58-4"><a href="#cb58-4" aria-hidden="true" tabindex="-1"></a>  .SDcols <span class="ot">=</span> colonnes</span>
+<span id="cb58-5"><a href="#cb58-5" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div data-pagedtable="false">
   <script data-pagedtable-source="" type="application/json">
@@ -681,9 +835,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 data-number="9.2" class="anchored" data-anchor-id="sélectionner-des-colonnes-avec-.."><span class="header-section-number">9.2</span> Sélectionner des colonnes avec <code>..</code></h2>
 <p>Le préfixe <code>..</code> indique que le nom doit être recherché dans l’environnement appelant, plutôt que parmi les colonnes de <code>DT</code>.</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb48"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a>colonnes <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"id"</span>, <span class="st">"sexe"</span>, <span class="st">"salaire"</span>)</span>
-<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb48-3"><a href="#cb48-3" aria-hidden="true" tabindex="-1"></a>DT[, ..colonnes]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb59"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb59-1"><a href="#cb59-1" aria-hidden="true" tabindex="-1"></a>colonnes <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"id"</span>, <span class="st">"sexe"</span>, <span class="st">"salaire"</span>)</span>
+<span id="cb59-2"><a href="#cb59-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb59-3"><a href="#cb59-3" aria-hidden="true" tabindex="-1"></a>DT[, ..colonnes]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div data-pagedtable="false">
   <script data-pagedtable-source="" type="application/json">
@@ -703,17 +857,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h1 data-number="10"><span class="header-section-number">10</span> Plusieurs noms de colonnes dans une expression</h1>
 <p><code>env</code> peut remplacer plusieurs symboles à la fois.</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb49"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a>var1 <span class="ot">&lt;-</span> <span class="st">"age"</span></span>
-<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a>var2 <span class="ot">&lt;-</span> <span class="st">"salaire"</span></span>
-<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb49-4"><a href="#cb49-4" aria-hidden="true" tabindex="-1"></a>DT[</span>
-<span id="cb49-5"><a href="#cb49-5" aria-hidden="true" tabindex="-1"></a>  ,</span>
-<span id="cb49-6"><a href="#cb49-6" aria-hidden="true" tabindex="-1"></a>  .(<span class="at">premiere =</span> <span class="fu">mean</span>(x), <span class="at">deuxieme =</span> <span class="fu">mean</span>(y)),</span>
-<span id="cb49-7"><a href="#cb49-7" aria-hidden="true" tabindex="-1"></a>  env <span class="ot">=</span> <span class="fu">list</span>(</span>
-<span id="cb49-8"><a href="#cb49-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> var1,</span>
-<span id="cb49-9"><a href="#cb49-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> var2</span>
-<span id="cb49-10"><a href="#cb49-10" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb49-11"><a href="#cb49-11" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb60"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb60-1"><a href="#cb60-1" aria-hidden="true" tabindex="-1"></a>var1 <span class="ot">&lt;-</span> <span class="st">"age"</span></span>
+<span id="cb60-2"><a href="#cb60-2" aria-hidden="true" tabindex="-1"></a>var2 <span class="ot">&lt;-</span> <span class="st">"salaire"</span></span>
+<span id="cb60-3"><a href="#cb60-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb60-4"><a href="#cb60-4" aria-hidden="true" tabindex="-1"></a>DT[</span>
+<span id="cb60-5"><a href="#cb60-5" aria-hidden="true" tabindex="-1"></a>  ,</span>
+<span id="cb60-6"><a href="#cb60-6" aria-hidden="true" tabindex="-1"></a>  .(<span class="at">premiere =</span> <span class="fu">mean</span>(x), <span class="at">deuxieme =</span> <span class="fu">mean</span>(y)),</span>
+<span id="cb60-7"><a href="#cb60-7" aria-hidden="true" tabindex="-1"></a>  env <span class="ot">=</span> <span class="fu">list</span>(</span>
+<span id="cb60-8"><a href="#cb60-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> var1,</span>
+<span id="cb60-9"><a href="#cb60-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> var2</span>
+<span id="cb60-10"><a href="#cb60-10" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb60-11"><a href="#cb60-11" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div data-pagedtable="false">
   <script data-pagedtable-source="" type="application/json">
@@ -723,18 +877,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 <p>L’expression est équivalente à :</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb50"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a>DT[, .(<span class="at">premiere =</span> <span class="fu">mean</span>(age), <span class="at">deuxieme =</span> <span class="fu">mean</span>(salaire))]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb61"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb61-1"><a href="#cb61-1" aria-hidden="true" tabindex="-1"></a>DT[, .(<span class="at">premiere =</span> <span class="fu">mean</span>(age), <span class="at">deuxieme =</span> <span class="fu">mean</span>(salaire))]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="comprendre-i-avec-des-exemples" class="level1" data-number="11">
 <h1 data-number="11"><span class="header-section-number">11</span> Comprendre <code>I()</code> avec des exemples</h1>
 <p><code>I()</code> est utile lorsqu’une chaîne doit rester une valeur et ne pas devenir un nom de colonne.</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb51"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="co"># La valeur "F" sert à filtrer les lignes.</span></span>
-<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a>DT[</span>
-<span id="cb51-3"><a href="#cb51-3" aria-hidden="true" tabindex="-1"></a>  sexe <span class="sc">==</span> valeur,</span>
-<span id="cb51-4"><a href="#cb51-4" aria-hidden="true" tabindex="-1"></a>  .(<span class="at">salaire_moyen =</span> <span class="fu">mean</span>(salaire)),</span>
-<span id="cb51-5"><a href="#cb51-5" aria-hidden="true" tabindex="-1"></a>  env <span class="ot">=</span> <span class="fu">list</span>(<span class="at">valeur =</span> <span class="fu">I</span>(<span class="st">"F"</span>))</span>
-<span id="cb51-6"><a href="#cb51-6" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb62"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb62-1"><a href="#cb62-1" aria-hidden="true" tabindex="-1"></a><span class="co"># La valeur "F" sert à filtrer les lignes.</span></span>
+<span id="cb62-2"><a href="#cb62-2" aria-hidden="true" tabindex="-1"></a>DT[</span>
+<span id="cb62-3"><a href="#cb62-3" aria-hidden="true" tabindex="-1"></a>  sexe <span class="sc">==</span> valeur,</span>
+<span id="cb62-4"><a href="#cb62-4" aria-hidden="true" tabindex="-1"></a>  .(<span class="at">salaire_moyen =</span> <span class="fu">mean</span>(salaire)),</span>
+<span id="cb62-5"><a href="#cb62-5" aria-hidden="true" tabindex="-1"></a>  env <span class="ot">=</span> <span class="fu">list</span>(<span class="at">valeur =</span> <span class="fu">I</span>(<span class="st">"F"</span>))</span>
+<span id="cb62-6"><a href="#cb62-6" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div data-pagedtable="false">
   <script data-pagedtable-source="" type="application/json">
@@ -745,12 +899,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 <p>Comparons avec la substitution d’un nom de colonne :</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb52"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a><span class="co"># x est remplacé par le symbole salaire.</span></span>
-<span id="cb52-2"><a href="#cb52-2" aria-hidden="true" tabindex="-1"></a>DT[</span>
-<span id="cb52-3"><a href="#cb52-3" aria-hidden="true" tabindex="-1"></a>  ,</span>
-<span id="cb52-4"><a href="#cb52-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mean</span>(x),</span>
-<span id="cb52-5"><a href="#cb52-5" aria-hidden="true" tabindex="-1"></a>  env <span class="ot">=</span> <span class="fu">list</span>(<span class="at">x =</span> <span class="st">"salaire"</span>)</span>
-<span id="cb52-6"><a href="#cb52-6" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb63"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb63-1"><a href="#cb63-1" aria-hidden="true" tabindex="-1"></a><span class="co"># x est remplacé par le symbole salaire.</span></span>
+<span id="cb63-2"><a href="#cb63-2" aria-hidden="true" tabindex="-1"></a>DT[</span>
+<span id="cb63-3"><a href="#cb63-3" aria-hidden="true" tabindex="-1"></a>  ,</span>
+<span id="cb63-4"><a href="#cb63-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mean</span>(x),</span>
+<span id="cb63-5"><a href="#cb63-5" aria-hidden="true" tabindex="-1"></a>  env <span class="ot">=</span> <span class="fu">list</span>(<span class="at">x =</span> <span class="st">"salaire"</span>)</span>
+<span id="cb63-6"><a href="#cb63-6" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>[1] 5487.5</code></pre>
 </div>
@@ -805,13 +959,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 data-number="12.1" class="anchored" data-anchor-id="comparer-get-et-env"><span class="header-section-number">12.1</span> Comparer <code>get()</code> et <code>env</code></h2>
 <p>Les deux versions suivantes donnent le même résultat :</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb54"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb54-1"><a href="#cb54-1" aria-hidden="true" tabindex="-1"></a>variable <span class="ot">&lt;-</span> <span class="st">"salaire"</span></span>
-<span id="cb54-2"><a href="#cb54-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb54-3"><a href="#cb54-3" aria-hidden="true" tabindex="-1"></a>DT[, <span class="fu">mean</span>(<span class="fu">get</span>(variable))]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb65"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb65-1"><a href="#cb65-1" aria-hidden="true" tabindex="-1"></a>variable <span class="ot">&lt;-</span> <span class="st">"salaire"</span></span>
+<span id="cb65-2"><a href="#cb65-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb65-3"><a href="#cb65-3" aria-hidden="true" tabindex="-1"></a>DT[, <span class="fu">mean</span>(<span class="fu">get</span>(variable))]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>[1] 5487.5</code></pre>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb56"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a>DT[, <span class="fu">mean</span>(x), env <span class="ot">=</span> <span class="fu">list</span>(<span class="at">x =</span> variable)]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb67"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb67-1"><a href="#cb67-1" aria-hidden="true" tabindex="-1"></a>DT[, <span class="fu">mean</span>(x), env <span class="ot">=</span> <span class="fu">list</span>(<span class="at">x =</span> variable)]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>[1] 5487.5</code></pre>
 </div>
@@ -836,8 +990,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="examiner-une-expression" class="level2" data-number="13.1">
 <h2 data-number="13.1" class="anchored" data-anchor-id="examiner-une-expression"><span class="header-section-number">13.1</span> Examiner une expression</h2>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb58"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb58-1"><a href="#cb58-1" aria-hidden="true" tabindex="-1"></a>expr <span class="ot">&lt;-</span> <span class="fu">quote</span>(<span class="fu">mean</span>(x))</span>
-<span id="cb58-2"><a href="#cb58-2" aria-hidden="true" tabindex="-1"></a>expr</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb69"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb69-1"><a href="#cb69-1" aria-hidden="true" tabindex="-1"></a>expr <span class="ot">&lt;-</span> <span class="fu">quote</span>(<span class="fu">mean</span>(x))</span>
+<span id="cb69-2"><a href="#cb69-2" aria-hidden="true" tabindex="-1"></a>expr</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>mean(x)</code></pre>
 </div>
@@ -845,10 +999,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p><code>quote()</code> capture le code sans l’exécuter.</p>
 <p>On peut ensuite remplacer <code>x</code> :</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb60"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb60-1"><a href="#cb60-1" aria-hidden="true" tabindex="-1"></a><span class="fu">substitute2</span>(</span>
-<span id="cb60-2"><a href="#cb60-2" aria-hidden="true" tabindex="-1"></a>  expr,</span>
-<span id="cb60-3"><a href="#cb60-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">env =</span> <span class="fu">list</span>(<span class="at">x =</span> <span class="st">"salaire"</span>)</span>
-<span id="cb60-4"><a href="#cb60-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb71"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb71-1"><a href="#cb71-1" aria-hidden="true" tabindex="-1"></a><span class="fu">substitute2</span>(</span>
+<span id="cb71-2"><a href="#cb71-2" aria-hidden="true" tabindex="-1"></a>  expr,</span>
+<span id="cb71-3"><a href="#cb71-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">env =</span> <span class="fu">list</span>(<span class="at">x =</span> <span class="st">"salaire"</span>)</span>
+<span id="cb71-4"><a href="#cb71-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>expr</code></pre>
 </div>
@@ -859,19 +1013,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 data-number="13.2" class="anchored" data-anchor-id="examiner-puis-utiliser-une-expression"><span class="header-section-number">13.2</span> Examiner puis utiliser une expression</h2>
 <p>On peut conserver l’expression transformée dans un objet R :</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb62"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb62-1"><a href="#cb62-1" aria-hidden="true" tabindex="-1"></a>expr <span class="ot">&lt;-</span> <span class="fu">substitute2</span>(</span>
-<span id="cb62-2"><a href="#cb62-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mean</span>(x),</span>
-<span id="cb62-3"><a href="#cb62-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">env =</span> <span class="fu">list</span>(<span class="at">x =</span> <span class="st">"salaire"</span>)</span>
-<span id="cb62-4"><a href="#cb62-4" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb62-5"><a href="#cb62-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb62-6"><a href="#cb62-6" aria-hidden="true" tabindex="-1"></a>expr</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb73"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb73-1"><a href="#cb73-1" aria-hidden="true" tabindex="-1"></a>expr <span class="ot">&lt;-</span> <span class="fu">substitute2</span>(</span>
+<span id="cb73-2"><a href="#cb73-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mean</span>(x),</span>
+<span id="cb73-3"><a href="#cb73-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">env =</span> <span class="fu">list</span>(<span class="at">x =</span> <span class="st">"salaire"</span>)</span>
+<span id="cb73-4"><a href="#cb73-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb73-5"><a href="#cb73-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb73-6"><a href="#cb73-6" aria-hidden="true" tabindex="-1"></a>expr</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>mean(salaire)</code></pre>
 </div>
 </div>
 <p><code>expr</code> contient maintenant le code <code>mean(salaire)</code>. La substitution est terminée, mais le calcul n’a pas encore été effectué. Pour les usages courants, il est généralement plus simple de laisser <code>data.table</code> faire les deux étapes :</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb64"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb64-1"><a href="#cb64-1" aria-hidden="true" tabindex="-1"></a>DT[, <span class="fu">mean</span>(x), env <span class="ot">=</span> <span class="fu">list</span>(<span class="at">x =</span> <span class="st">"salaire"</span>)]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb75"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb75-1"><a href="#cb75-1" aria-hidden="true" tabindex="-1"></a>DT[, <span class="fu">mean</span>(x), env <span class="ot">=</span> <span class="fu">list</span>(<span class="at">x =</span> <span class="st">"salaire"</span>)]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>[1] 5487.5</code></pre>
 </div>
@@ -884,7 +1038,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="ne-pas-rendre-tout-dynamique-sans-raison" class="level2" data-number="14.1">
 <h2 data-number="14.1" class="anchored" data-anchor-id="ne-pas-rendre-tout-dynamique-sans-raison"><span class="header-section-number">14.1</span> 1. Ne pas rendre tout dynamique sans raison</h2>
 <p>Si le nom de la colonne est connu, écrivez simplement :</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb66"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb66-1"><a href="#cb66-1" aria-hidden="true" tabindex="-1"></a>DT[, <span class="fu">mean</span>(salaire)]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb77"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb77-1"><a href="#cb77-1" aria-hidden="true" tabindex="-1"></a>DT[, <span class="fu">mean</span>(salaire)]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <p>C’est plus direct et plus facile à lire.</p>
 </section>
 <section id="choisir-la-méthode-la-plus-simple" class="level2" data-number="14.2">
@@ -899,11 +1053,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 data-number="14.3" class="anchored" data-anchor-id="utiliser-copy-avant-une-modification-si-loriginal-doit-être-conservé"><span class="header-section-number">14.3</span> 3. Utiliser <code>copy()</code> avant une modification si l’original doit être conservé</h2>
 <p><code>:=</code> modifie le tableau par référence.</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb67"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb67-1"><a href="#cb67-1" aria-hidden="true" tabindex="-1"></a>DT_copie <span class="ot">&lt;-</span> <span class="fu">copy</span>(DT)</span>
-<span id="cb67-2"><a href="#cb67-2" aria-hidden="true" tabindex="-1"></a>DT_copie[, nouvelle_colonne <span class="sc">:</span><span class="er">=</span> age <span class="sc">*</span> <span class="dv">2</span>]</span>
-<span id="cb67-3"><a href="#cb67-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb67-4"><a href="#cb67-4" aria-hidden="true" tabindex="-1"></a><span class="co"># DT ne contient pas nouvelle_colonne</span></span>
-<span id="cb67-5"><a href="#cb67-5" aria-hidden="true" tabindex="-1"></a><span class="st">"nouvelle_colonne"</span> <span class="sc">%in%</span> <span class="fu">names</span>(DT)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb78"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb78-1"><a href="#cb78-1" aria-hidden="true" tabindex="-1"></a>DT_copie <span class="ot">&lt;-</span> <span class="fu">copy</span>(DT)</span>
+<span id="cb78-2"><a href="#cb78-2" aria-hidden="true" tabindex="-1"></a>DT_copie[, nouvelle_colonne <span class="sc">:</span><span class="er">=</span> age <span class="sc">*</span> <span class="dv">2</span>]</span>
+<span id="cb78-3"><a href="#cb78-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb78-4"><a href="#cb78-4" aria-hidden="true" tabindex="-1"></a><span class="co"># DT ne contient pas nouvelle_colonne</span></span>
+<span id="cb78-5"><a href="#cb78-5" aria-hidden="true" tabindex="-1"></a><span class="st">"nouvelle_colonne"</span> <span class="sc">%in%</span> <span class="fu">names</span>(DT)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>[1] FALSE</code></pre>
 </div>
@@ -913,21 +1067,21 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 data-number="14.4" class="anchored" data-anchor-id="vérifier-les-noms-de-colonnes-reçus"><span class="header-section-number">14.4</span> 4. Vérifier les noms de colonnes reçus</h2>
 <p>Dans une fonction réutilisable, on peut contrôler qu’une colonne existe :</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb69"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb69-1"><a href="#cb69-1" aria-hidden="true" tabindex="-1"></a>verifier_colonne <span class="ot">&lt;-</span> <span class="cf">function</span>(data, variable) {</span>
-<span id="cb69-2"><a href="#cb69-2" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="sc">!</span>variable <span class="sc">%in%</span> <span class="fu">names</span>(data)) {</span>
-<span id="cb69-3"><a href="#cb69-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">stop</span>(<span class="st">"La colonne '"</span>, variable, <span class="st">"' n'existe pas dans le tableau."</span>)</span>
-<span id="cb69-4"><a href="#cb69-4" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb69-5"><a href="#cb69-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">invisible</span>(<span class="cn">TRUE</span>)</span>
-<span id="cb69-6"><a href="#cb69-6" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb69-7"><a href="#cb69-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb69-8"><a href="#cb69-8" aria-hidden="true" tabindex="-1"></a><span class="fu">verifier_colonne</span>(DT, <span class="st">"salaire"</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb80"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb80-1"><a href="#cb80-1" aria-hidden="true" tabindex="-1"></a>verifier_colonne <span class="ot">&lt;-</span> <span class="cf">function</span>(data, variable) {</span>
+<span id="cb80-2"><a href="#cb80-2" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="sc">!</span>variable <span class="sc">%in%</span> <span class="fu">names</span>(data)) {</span>
+<span id="cb80-3"><a href="#cb80-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">stop</span>(<span class="st">"La colonne '"</span>, variable, <span class="st">"' n'existe pas dans le tableau."</span>)</span>
+<span id="cb80-4"><a href="#cb80-4" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb80-5"><a href="#cb80-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">invisible</span>(<span class="cn">TRUE</span>)</span>
+<span id="cb80-6"><a href="#cb80-6" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb80-7"><a href="#cb80-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb80-8"><a href="#cb80-8" aria-hidden="true" tabindex="-1"></a><span class="fu">verifier_colonne</span>(DT, <span class="st">"salaire"</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="utiliser-verbose-true-pour-comprendre" class="level2" data-number="14.5">
 <h2 data-number="14.5" class="anchored" data-anchor-id="utiliser-verbose-true-pour-comprendre"><span class="header-section-number">14.5</span> 5. Utiliser <code>verbose = TRUE</code> pour comprendre</h2>
 <p><code>verbose = TRUE</code> permet d’obtenir des informations de diagnostic sur le traitement effectué par <code>data.table</code>.</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb70"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb70-1"><a href="#cb70-1" aria-hidden="true" tabindex="-1"></a>DT[, <span class="fu">mean</span>(x), env <span class="ot">=</span> <span class="fu">list</span>(<span class="at">x =</span> <span class="st">"salaire"</span>), verbose <span class="ot">=</span> <span class="cn">TRUE</span>]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb81"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb81-1"><a href="#cb81-1" aria-hidden="true" tabindex="-1"></a>DT[, <span class="fu">mean</span>(x), env <span class="ot">=</span> <span class="fu">list</span>(<span class="at">x =</span> <span class="st">"salaire"</span>), verbose <span class="ot">=</span> <span class="cn">TRUE</span>]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Argument 'j' after substitute: mean(salaire)
 Detected that j uses these columns: [salaire]</code></pre>
@@ -945,15 +1099,15 @@ Detected that j uses these columns: [salaire]</code></pre>
 <h2 data-number="15.1" class="anchored" data-anchor-id="exercice-1-une-moyenne-dynamique"><span class="header-section-number">15.1</span> Exercice 1 — Une moyenne dynamique</h2>
 <p>Écrire une fonction <code>calculer_moyenne(data, variable)</code> qui calcule la moyenne de la colonne indiquée.</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb73"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb73-1"><a href="#cb73-1" aria-hidden="true" tabindex="-1"></a>calculer_moyenne <span class="ot">&lt;-</span> <span class="cf">function</span>(data, variable) {</span>
-<span id="cb73-2"><a href="#cb73-2" aria-hidden="true" tabindex="-1"></a>  data[, <span class="fu">mean</span>(x, <span class="at">na.rm =</span> <span class="cn">TRUE</span>), env <span class="ot">=</span> <span class="fu">list</span>(<span class="at">x =</span> variable)]</span>
-<span id="cb73-3"><a href="#cb73-3" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb73-4"><a href="#cb73-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb73-5"><a href="#cb73-5" aria-hidden="true" tabindex="-1"></a><span class="fu">calculer_moyenne</span>(DT, <span class="st">"age"</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb84"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb84-1"><a href="#cb84-1" aria-hidden="true" tabindex="-1"></a>calculer_moyenne <span class="ot">&lt;-</span> <span class="cf">function</span>(data, variable) {</span>
+<span id="cb84-2"><a href="#cb84-2" aria-hidden="true" tabindex="-1"></a>  data[, <span class="fu">mean</span>(x, <span class="at">na.rm =</span> <span class="cn">TRUE</span>), env <span class="ot">=</span> <span class="fu">list</span>(<span class="at">x =</span> variable)]</span>
+<span id="cb84-3"><a href="#cb84-3" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb84-4"><a href="#cb84-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb84-5"><a href="#cb84-5" aria-hidden="true" tabindex="-1"></a><span class="fu">calculer_moyenne</span>(DT, <span class="st">"age"</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>[1] 35.625</code></pre>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb75"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb75-1"><a href="#cb75-1" aria-hidden="true" tabindex="-1"></a><span class="fu">calculer_moyenne</span>(DT, <span class="st">"salaire"</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb86"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb86-1"><a href="#cb86-1" aria-hidden="true" tabindex="-1"></a><span class="fu">calculer_moyenne</span>(DT, <span class="st">"salaire"</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>[1] 5487.5</code></pre>
 </div>
@@ -962,11 +1116,11 @@ Detected that j uses these columns: [salaire]</code></pre>
 <section id="exercice-2-filtrer-avec-un-seuil-dynamique" class="level2" data-number="15.2">
 <h2 data-number="15.2" class="anchored" data-anchor-id="exercice-2-filtrer-avec-un-seuil-dynamique"><span class="header-section-number">15.2</span> Exercice 2 — Filtrer avec un seuil dynamique</h2>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb77"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb77-1"><a href="#cb77-1" aria-hidden="true" tabindex="-1"></a>filtrer <span class="ot">&lt;-</span> <span class="cf">function</span>(data, variable, seuil) {</span>
-<span id="cb77-2"><a href="#cb77-2" aria-hidden="true" tabindex="-1"></a>  data[x <span class="sc">&gt;=</span> seuil, , env <span class="ot">=</span> <span class="fu">list</span>(<span class="at">x =</span> variable, <span class="at">seuil =</span> seuil)]</span>
-<span id="cb77-3"><a href="#cb77-3" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb77-4"><a href="#cb77-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb77-5"><a href="#cb77-5" aria-hidden="true" tabindex="-1"></a><span class="fu">filtrer</span>(DT, <span class="st">"age"</span>, <span class="dv">40</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb88"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb88-1"><a href="#cb88-1" aria-hidden="true" tabindex="-1"></a>filtrer <span class="ot">&lt;-</span> <span class="cf">function</span>(data, variable, seuil) {</span>
+<span id="cb88-2"><a href="#cb88-2" aria-hidden="true" tabindex="-1"></a>  data[x <span class="sc">&gt;=</span> seuil, , env <span class="ot">=</span> <span class="fu">list</span>(<span class="at">x =</span> variable, <span class="at">seuil =</span> seuil)]</span>
+<span id="cb88-3"><a href="#cb88-3" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb88-4"><a href="#cb88-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb88-5"><a href="#cb88-5" aria-hidden="true" tabindex="-1"></a><span class="fu">filtrer</span>(DT, <span class="st">"age"</span>, <span class="dv">40</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div data-pagedtable="false">
   <script data-pagedtable-source="" type="application/json">
@@ -974,7 +1128,7 @@ Detected that j uses these columns: [salaire]</code></pre>
   </script>
 </div>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb78"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb78-1"><a href="#cb78-1" aria-hidden="true" tabindex="-1"></a><span class="fu">filtrer</span>(DT, <span class="st">"salaire"</span>, <span class="dv">5500</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb89"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb89-1"><a href="#cb89-1" aria-hidden="true" tabindex="-1"></a><span class="fu">filtrer</span>(DT, <span class="st">"salaire"</span>, <span class="dv">5500</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div data-pagedtable="false">
   <script data-pagedtable-source="" type="application/json">
@@ -987,16 +1141,16 @@ Detected that j uses these columns: [salaire]</code></pre>
 <section id="exercice-3-une-moyenne-par-groupe" class="level2" data-number="15.3">
 <h2 data-number="15.3" class="anchored" data-anchor-id="exercice-3-une-moyenne-par-groupe"><span class="header-section-number">15.3</span> Exercice 3 — Une moyenne par groupe</h2>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb79"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb79-1"><a href="#cb79-1" aria-hidden="true" tabindex="-1"></a>moyenne_groupe <span class="ot">&lt;-</span> <span class="cf">function</span>(data, variable, groupe) {</span>
-<span id="cb79-2"><a href="#cb79-2" aria-hidden="true" tabindex="-1"></a>  data[</span>
-<span id="cb79-3"><a href="#cb79-3" aria-hidden="true" tabindex="-1"></a>    ,</span>
-<span id="cb79-4"><a href="#cb79-4" aria-hidden="true" tabindex="-1"></a>    .(<span class="at">moyenne =</span> <span class="fu">mean</span>(x, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)),</span>
-<span id="cb79-5"><a href="#cb79-5" aria-hidden="true" tabindex="-1"></a>    by <span class="ot">=</span> groupe,</span>
-<span id="cb79-6"><a href="#cb79-6" aria-hidden="true" tabindex="-1"></a>    env <span class="ot">=</span> <span class="fu">list</span>(<span class="at">x =</span> variable, <span class="at">groupe =</span> groupe)</span>
-<span id="cb79-7"><a href="#cb79-7" aria-hidden="true" tabindex="-1"></a>  ]</span>
-<span id="cb79-8"><a href="#cb79-8" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb79-9"><a href="#cb79-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb79-10"><a href="#cb79-10" aria-hidden="true" tabindex="-1"></a><span class="fu">moyenne_groupe</span>(DT, <span class="st">"salaire"</span>, <span class="st">"sexe"</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb90"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb90-1"><a href="#cb90-1" aria-hidden="true" tabindex="-1"></a>moyenne_groupe <span class="ot">&lt;-</span> <span class="cf">function</span>(data, variable, groupe) {</span>
+<span id="cb90-2"><a href="#cb90-2" aria-hidden="true" tabindex="-1"></a>  data[</span>
+<span id="cb90-3"><a href="#cb90-3" aria-hidden="true" tabindex="-1"></a>    ,</span>
+<span id="cb90-4"><a href="#cb90-4" aria-hidden="true" tabindex="-1"></a>    .(<span class="at">moyenne =</span> <span class="fu">mean</span>(x, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)),</span>
+<span id="cb90-5"><a href="#cb90-5" aria-hidden="true" tabindex="-1"></a>    by <span class="ot">=</span> groupe,</span>
+<span id="cb90-6"><a href="#cb90-6" aria-hidden="true" tabindex="-1"></a>    env <span class="ot">=</span> <span class="fu">list</span>(<span class="at">x =</span> variable, <span class="at">groupe =</span> groupe)</span>
+<span id="cb90-7"><a href="#cb90-7" aria-hidden="true" tabindex="-1"></a>  ]</span>
+<span id="cb90-8"><a href="#cb90-8" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb90-9"><a href="#cb90-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb90-10"><a href="#cb90-10" aria-hidden="true" tabindex="-1"></a><span class="fu">moyenne_groupe</span>(DT, <span class="st">"salaire"</span>, <span class="st">"sexe"</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div data-pagedtable="false">
   <script data-pagedtable-source="" type="application/json">
@@ -1004,7 +1158,7 @@ Detected that j uses these columns: [salaire]</code></pre>
   </script>
 </div>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb80"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb80-1"><a href="#cb80-1" aria-hidden="true" tabindex="-1"></a><span class="fu">moyenne_groupe</span>(DT, <span class="st">"age"</span>, <span class="st">"formation"</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb91"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb91-1"><a href="#cb91-1" aria-hidden="true" tabindex="-1"></a><span class="fu">moyenne_groupe</span>(DT, <span class="st">"age"</span>, <span class="st">"formation"</span>)</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div data-pagedtable="false">
   <script data-pagedtable-source="" type="application/json">
@@ -1018,16 +1172,16 @@ Detected that j uses these columns: [salaire]</code></pre>
 <h2 data-number="15.4" class="anchored" data-anchor-id="exercice-4-transformer-plusieurs-colonnes"><span class="header-section-number">15.4</span> Exercice 4 — Transformer plusieurs colonnes</h2>
 <p>Appliquer une transformation à plusieurs colonnes numériques :</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb81"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb81-1"><a href="#cb81-1" aria-hidden="true" tabindex="-1"></a>colonnes <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"age"</span>, <span class="st">"salaire"</span>)</span>
-<span id="cb81-2"><a href="#cb81-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb81-3"><a href="#cb81-3" aria-hidden="true" tabindex="-1"></a>DT_transforme <span class="ot">&lt;-</span> <span class="fu">copy</span>(DT)</span>
-<span id="cb81-4"><a href="#cb81-4" aria-hidden="true" tabindex="-1"></a>DT_transforme[</span>
-<span id="cb81-5"><a href="#cb81-5" aria-hidden="true" tabindex="-1"></a>  ,</span>
-<span id="cb81-6"><a href="#cb81-6" aria-hidden="true" tabindex="-1"></a>  (colonnes) <span class="sc">:</span><span class="er">=</span> <span class="fu">lapply</span>(.SD, <span class="cf">function</span>(x) x <span class="sc">*</span> <span class="dv">2</span>),</span>
-<span id="cb81-7"><a href="#cb81-7" aria-hidden="true" tabindex="-1"></a>  .SDcols <span class="ot">=</span> colonnes</span>
-<span id="cb81-8"><a href="#cb81-8" aria-hidden="true" tabindex="-1"></a>]</span>
-<span id="cb81-9"><a href="#cb81-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb81-10"><a href="#cb81-10" aria-hidden="true" tabindex="-1"></a>DT_transforme[, ..colonnes]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb92"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb92-1"><a href="#cb92-1" aria-hidden="true" tabindex="-1"></a>colonnes <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"age"</span>, <span class="st">"salaire"</span>)</span>
+<span id="cb92-2"><a href="#cb92-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb92-3"><a href="#cb92-3" aria-hidden="true" tabindex="-1"></a>DT_transforme <span class="ot">&lt;-</span> <span class="fu">copy</span>(DT)</span>
+<span id="cb92-4"><a href="#cb92-4" aria-hidden="true" tabindex="-1"></a>DT_transforme[</span>
+<span id="cb92-5"><a href="#cb92-5" aria-hidden="true" tabindex="-1"></a>  ,</span>
+<span id="cb92-6"><a href="#cb92-6" aria-hidden="true" tabindex="-1"></a>  (colonnes) <span class="sc">:</span><span class="er">=</span> <span class="fu">lapply</span>(.SD, <span class="cf">function</span>(x) x <span class="sc">*</span> <span class="dv">2</span>),</span>
+<span id="cb92-7"><a href="#cb92-7" aria-hidden="true" tabindex="-1"></a>  .SDcols <span class="ot">=</span> colonnes</span>
+<span id="cb92-8"><a href="#cb92-8" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb92-9"><a href="#cb92-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb92-10"><a href="#cb92-10" aria-hidden="true" tabindex="-1"></a>DT_transforme[, ..colonnes]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div data-pagedtable="false">
   <script data-pagedtable-source="" type="application/json">
@@ -1040,20 +1194,20 @@ Detected that j uses these columns: [salaire]</code></pre>
 <section id="exercice-5-ajouter-un-indicateur-de-manière-générique" class="level2" data-number="15.5">
 <h2 data-number="15.5" class="anchored" data-anchor-id="exercice-5-ajouter-un-indicateur-de-manière-générique"><span class="header-section-number">15.5</span> Exercice 5 — Ajouter un indicateur de manière générique</h2>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb82"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb82-1"><a href="#cb82-1" aria-hidden="true" tabindex="-1"></a>ajouter_flag <span class="ot">&lt;-</span> <span class="cf">function</span>(data, variable, seuil, nom_flag) {</span>
-<span id="cb82-2"><a href="#cb82-2" aria-hidden="true" tabindex="-1"></a>  data[</span>
-<span id="cb82-3"><a href="#cb82-3" aria-hidden="true" tabindex="-1"></a>    ,</span>
-<span id="cb82-4"><a href="#cb82-4" aria-hidden="true" tabindex="-1"></a>    (nom_flag) <span class="sc">:</span><span class="er">=</span> <span class="fu">as.integer</span>(x <span class="sc">&gt;=</span> seuil),</span>
-<span id="cb82-5"><a href="#cb82-5" aria-hidden="true" tabindex="-1"></a>    env <span class="ot">=</span> <span class="fu">list</span>(</span>
-<span id="cb82-6"><a href="#cb82-6" aria-hidden="true" tabindex="-1"></a>      <span class="at">x =</span> variable,</span>
-<span id="cb82-7"><a href="#cb82-7" aria-hidden="true" tabindex="-1"></a>      <span class="at">seuil =</span> seuil</span>
-<span id="cb82-8"><a href="#cb82-8" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb82-9"><a href="#cb82-9" aria-hidden="true" tabindex="-1"></a>  ]</span>
-<span id="cb82-10"><a href="#cb82-10" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb82-11"><a href="#cb82-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb82-12"><a href="#cb82-12" aria-hidden="true" tabindex="-1"></a>DT_flags <span class="ot">&lt;-</span> <span class="fu">copy</span>(DT)</span>
-<span id="cb82-13"><a href="#cb82-13" aria-hidden="true" tabindex="-1"></a><span class="fu">ajouter_flag</span>(DT_flags, <span class="st">"salaire"</span>, <span class="dv">5500</span>, <span class="st">"flag_salaire"</span>)</span>
-<span id="cb82-14"><a href="#cb82-14" aria-hidden="true" tabindex="-1"></a>DT_flags[, .(id, salaire, flag_salaire)]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb93"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb93-1"><a href="#cb93-1" aria-hidden="true" tabindex="-1"></a>ajouter_flag <span class="ot">&lt;-</span> <span class="cf">function</span>(data, variable, seuil, nom_flag) {</span>
+<span id="cb93-2"><a href="#cb93-2" aria-hidden="true" tabindex="-1"></a>  data[</span>
+<span id="cb93-3"><a href="#cb93-3" aria-hidden="true" tabindex="-1"></a>    ,</span>
+<span id="cb93-4"><a href="#cb93-4" aria-hidden="true" tabindex="-1"></a>    (nom_flag) <span class="sc">:</span><span class="er">=</span> <span class="fu">as.integer</span>(x <span class="sc">&gt;=</span> seuil),</span>
+<span id="cb93-5"><a href="#cb93-5" aria-hidden="true" tabindex="-1"></a>    env <span class="ot">=</span> <span class="fu">list</span>(</span>
+<span id="cb93-6"><a href="#cb93-6" aria-hidden="true" tabindex="-1"></a>      <span class="at">x =</span> variable,</span>
+<span id="cb93-7"><a href="#cb93-7" aria-hidden="true" tabindex="-1"></a>      <span class="at">seuil =</span> seuil</span>
+<span id="cb93-8"><a href="#cb93-8" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb93-9"><a href="#cb93-9" aria-hidden="true" tabindex="-1"></a>  ]</span>
+<span id="cb93-10"><a href="#cb93-10" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb93-11"><a href="#cb93-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb93-12"><a href="#cb93-12" aria-hidden="true" tabindex="-1"></a>DT_flags <span class="ot">&lt;-</span> <span class="fu">copy</span>(DT)</span>
+<span id="cb93-13"><a href="#cb93-13" aria-hidden="true" tabindex="-1"></a><span class="fu">ajouter_flag</span>(DT_flags, <span class="st">"salaire"</span>, <span class="dv">5500</span>, <span class="st">"flag_salaire"</span>)</span>
+<span id="cb93-14"><a href="#cb93-14" aria-hidden="true" tabindex="-1"></a>DT_flags[, .(id, salaire, flag_salaire)]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div data-pagedtable="false">
   <script data-pagedtable-source="" type="application/json">
@@ -1074,13 +1228,13 @@ Detected that j uses these columns: [salaire]</code></pre>
 <li><strong><code>substitute2()</code></strong> effectue la substitution ; <code>data.table</code> évalue ensuite l’expression dans le contexte du tableau.</li>
 </ol>
 <p>Le point essentiel :</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb83"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb83-1"><a href="#cb83-1" aria-hidden="true" tabindex="-1"></a>variable <span class="ot">&lt;-</span> <span class="st">"salaire"</span></span>
-<span id="cb83-2"><a href="#cb83-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb83-3"><a href="#cb83-3" aria-hidden="true" tabindex="-1"></a>DT[</span>
-<span id="cb83-4"><a href="#cb83-4" aria-hidden="true" tabindex="-1"></a>  ,</span>
-<span id="cb83-5"><a href="#cb83-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mean</span>(x),</span>
-<span id="cb83-6"><a href="#cb83-6" aria-hidden="true" tabindex="-1"></a>  env <span class="ot">=</span> <span class="fu">list</span>(<span class="at">x =</span> variable)</span>
-<span id="cb83-7"><a href="#cb83-7" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb94"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb94-1"><a href="#cb94-1" aria-hidden="true" tabindex="-1"></a>variable <span class="ot">&lt;-</span> <span class="st">"salaire"</span></span>
+<span id="cb94-2"><a href="#cb94-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb94-3"><a href="#cb94-3" aria-hidden="true" tabindex="-1"></a>DT[</span>
+<span id="cb94-4"><a href="#cb94-4" aria-hidden="true" tabindex="-1"></a>  ,</span>
+<span id="cb94-5"><a href="#cb94-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mean</span>(x),</span>
+<span id="cb94-6"><a href="#cb94-6" aria-hidden="true" tabindex="-1"></a>  env <span class="ot">=</span> <span class="fu">list</span>(<span class="at">x =</span> variable)</span>
+<span id="cb94-7"><a href="#cb94-7" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div><button title="Copier vers le presse-papier" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Cela signifie : « Dans l’expression <code>mean(x)</code>, remplace <code>x</code> par le nom de colonne contenu dans <code>variable</code>, puis calcule la moyenne de cette colonne dans <code>DT</code>. »</p>
 </section>
 <section id="références" class="level1" data-number="17">

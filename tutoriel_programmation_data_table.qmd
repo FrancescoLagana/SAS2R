@@ -194,6 +194,7 @@ Le résultat affiché est une expression, pas le nombre 5500. La substitution mo
 On peut aussi vérifier le résultat numérique :
 
 ```{r}
+var <- "salaire"
 DT[, mean(x), env = list(x = "salaire")]
 ```
 
@@ -246,6 +247,111 @@ DT[
 ]
 ```
 
+## Distinguer un nom de colonne d'une valeur littérale avec `I()`
+
+Lorsqu'on utilise `env` avec `substitute2()`, il est important de distinguer deux situations :
+
+- Un **nom de colonne** : par exemple `"salaire"`.
+- Une **valeur littérale** : par exemple `"F"` ou `"M"`.
+
+Par défaut, `substitute2()` transforme les chaînes de caractères fournies dans `env` en symboles R. Cela permet de désigner dynamiquement les colonnes d'une `data.table`.
+
+Cependant, lorsque l'on souhaite utiliser une chaîne de caractères comme valeur littérale, il faut empêcher cette transformation. C'est précisément le rôle de `I()`.
+
+### Exemple : calculer le salaire moyen des femmes
+
+```{r}
+DT <- data.table(
+  sexe = c("F", "M", "F", "M"),
+  salaire = c(4000, 5000, 4500, 6000)
+)
+
+DT[
+  sexe == valeur,
+  mean(x),
+  env = list(
+    x = "salaire",
+    valeur = I("F")
+  )
+]
+```
+
+Comprenons les deux substitutions :
+
+- `x = "salaire"` : `"salaire"` est transformé en symbole `salaire`, c'est-à-dire en nom de colonne.
+- `valeur = I("F")` : `I()` empêche la transformation de `"F"` en symbole. La chaîne reste une valeur littérale.
+
+Après substitution, l'expression est équivalente à :
+
+``` r
+DT[
+  sexe == "F",
+  mean(salaire)
+]
+```
+
+Le résultat est `4250`.
+
+### Et pour calculer le salaire moyen des hommes ?
+
+Il suffit de remplacer `"F"` par `"M"` :
+
+```{r}
+DT[
+  sexe == valeur,
+  mean(x),
+  env = list(
+    x = "salaire",
+    valeur = I("M")
+  )
+]
+```
+
+Le résultat est `5500`.
+
+### Généraliser avec une fonction
+
+On peut rendre le code réutilisable en passant le nom de la variable, le nom de la variable de regroupement et la catégorie recherchée comme arguments :
+
+```{r}
+calcule_moyenne <- function(data, variable, groupe, categorie) {
+  data[
+    x == valeur,
+    mean(y),
+    env = list(
+      x = groupe,
+      valeur = I(categorie),
+      y = variable
+    )
+  ]
+}
+```
+
+On peut alors appeler la fonction de différentes manières :
+
+```{r}
+# Salaire moyen des femmes
+calcule_moyenne(DT, "salaire", "sexe", "F")
+
+# Salaire moyen des hommes
+calcule_moyenne(DT, "salaire", "sexe", "M")
+```
+
+La fonction ne doit pas être modifiée : seuls les arguments changent.
+
+### À retenir
+
+| Dans `env` | Interprétation |
+|------------------------------------|------------------------------------|
+| `x = "salaire"` | Le texte est transformé en symbole : nom de colonne `salaire` |
+| `valeur = I("F")` | La chaîne `"F"` reste une valeur littérale |
+| `valeur = I("M")` | La chaîne `"M"` reste une valeur littérale |
+| `seuil = 4500` | La valeur numérique reste numérique, sans besoin de `I()` |
+
+**Règle pratique :** utiliser `I()` lorsqu'une chaîne de caractères doit être interprétée comme une valeur et non comme le nom d'une colonne.
+
+Cette distinction est essentielle pour écrire des fonctions `data.table` programmatiques, dans lesquelles les noms de colonnes et les valeurs à rechercher sont fournis dynamiquement.
+
 À retenir :
 
 - `"salaire"` dans `env` devient normalement un nom de colonne ;
@@ -255,6 +361,22 @@ DT[
 # Programmer les trois parties i, j et by
 
 ## Filtrer avec un nom de colonne variable
+
+On reprend le dataset originaire:
+
+```{r}
+DT <- data.table(
+  id = 1:8,
+  sexe = c("F", "M", "F", "M", "F", "M", "F", "M"),
+  age = c(24, 31, 29, 42, 36, 27, 51, 45),
+  salaire = c(4200, 5100, 4600, 6200, 5400, 4800, 7100, 6500),
+  formation = c("CFC", "HES", "Uni", "CFC", "HES", "Uni", "Uni", "HES"),
+  actif = c(TRUE, TRUE, TRUE, FALSE, TRUE, TRUE, FALSE, TRUE)
+)
+
+DT
+```
+
 
 ```{r}
 filtrer_superieur <- function(data, variable, seuil) {
@@ -356,8 +478,8 @@ creer_colonne <- function(data, variable, nouveau_nom, facteur = 1) {
 }
 
 DT_demo <- copy(DT)
-creer_colonne(DT_demo, "salaire", "salaire_annuel", 12)
-creer_colonne(DT_demo, "age", "age_en_mois", 12)
+creer_colonne(data = DT_demo, variable = "salaire", nouveau_nom =  "salaire_annuel", facteur =  12)
+creer_colonne(data = DT_demo, variable = "age", nouveau_nom =  "age_en_mois", facteur =  12)
 
 DT_demo[, .(age, age_en_mois, salaire, salaire_annuel)]
 ```
