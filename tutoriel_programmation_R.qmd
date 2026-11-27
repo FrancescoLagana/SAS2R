@@ -1,0 +1,1389 @@
+---
+title: "Programmation fonctionnelle en R" 
+subtitle: "Base R, purrr et data.table – Guide pratique pour la production statistique"
+author: ""
+lang: fr
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-fold: false
+    theme: cosmo
+    df-print: paged
+  pdf:
+    toc: true
+    number-sections: true
+    pdf-engine: xelatex
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+
+
+# 1. Introduction
+
+La programmation fonctionnelle consiste à organiser un programme autour de fonctions réutilisables, capables de recevoir des arguments et de retourner des résultats.
+
+En R, les fonctions sont des objets de première classe (*first-class objects*). Elles peuvent :
+
+- être stockées dans des variables ;
+- être transmises comme arguments à d'autres fonctions ;
+- être retournées par d'autres fonctions ;
+- être composées pour construire des traitements plus complexes.
+
+La programmation fonctionnelle permet notamment de :
+
+- limiter la répétition du code ;
+- automatiser les traitements ;
+- construire des fonctions génériques ;
+- faciliter la maintenance et les tests ;
+- standardiser les processus de production statistique.
+
+Ce tutoriel distingue trois niveaux complémentaires :
+
+| Environnement | Rôle principal                                     |
+|---------------|----------------------------------------------------|
+| Base R        | Fondements et outils fonctionnels natifs           |
+| purrr         | Interface cohérente pour l'itération fonctionnelle |
+| data.table    | Manipulation efficace de données structurées       |
+
+L'objectif n'est pas de choisir un seul package, mais de comprendre comment les utiliser ensemble.
+
+# 2. Base R : les fondements de la programmation fonctionnelle
+
+Base R dispose déjà de nombreux outils permettant de développer des programmes fonctionnels, sans installer de package supplémentaire.
+
+## 2.1. Créer une fonction
+
+La structure générale est :
+
+``` r
+nom_fonction <- function(argument1, argument2 = valeur_par_defaut) {
+  resultat <- ...
+  return(resultat)
+}
+```
+
+Exemple :
+
+```{r}
+calculer_moyenne <- function(x) {
+  mean(x, na.rm = TRUE)
+}
+
+valeurs <- c(10, 15, 20, NA, 25)
+
+calculer_moyenne(valeurs)
+```
+
+La dernière expression évaluée est automatiquement retournée. L'utilisation de `return()` est donc facultative.
+
+## 2.2. Arguments par défaut
+
+```{r}
+ajouter_valeur <- function(x, valeur = 1) {
+  x + valeur
+}
+
+ajouter_valeur(10)
+ajouter_valeur(10, 5)
+```
+
+## 2.3. Fonctions anonymes
+
+Une fonction anonyme est une fonction sans nom explicite.
+
+```{r}
+function(x) x^2
+```
+
+R propose également une syntaxe raccourcie :
+
+```{r}
+\(x) x^2
+```
+
+Exemple :
+
+```{r}
+lapply(1:5, \(x) x^2)
+```
+
+## 2.4. Passer une fonction comme argument
+
+Une fonction peut recevoir une autre fonction comme argument.
+
+```{r}
+calculer <- function(x, fonction) {
+  fonction(x)
+}
+
+valeurs <- c(10, 20, 30, 40)
+
+calculer(valeurs, mean)
+calculer(valeurs, median)
+calculer(valeurs, sum)
+```
+
+Cette approche permet de créer des fonctions génériques.
+
+## 2.5. `match.fun()` : identifier une fonction
+
+`match.fun()` permet de récupérer une fonction à partir de son nom ou de l'objet fonction lui-même.
+
+```{r}
+calculer <- function(x, FUN = mean) {
+
+  FUN <- match.fun(FUN)
+
+  FUN(x)
+}
+
+calculer(1:10, mean)
+calculer(1:10, median)
+calculer(1:10, "sum")
+```
+
+Cette fonction est particulièrement utile pour construire des fonctions paramétrables.
+
+# 3. Base R : les fonctions d'itération
+
+Les fonctions d'itération permettent d'appliquer une même opération à plusieurs éléments.
+
+## 3.1. `lapply()` : appliquer une fonction à une liste
+
+`lapply()` applique une fonction à chaque élément et retourne toujours une liste.
+
+```{r}
+donnees <- list(
+  A = c(10, 20, 30),
+  B = c(15, 25, 35),
+  C = c(20, 30, 40)
+)
+
+lapply(donnees, mean)
+```
+
+## 3.2. `sapply()` : simplifier le résultat
+
+`sapply()` fonctionne comme `lapply()`, mais tente de simplifier le résultat.
+
+```{r}
+sapply(donnees, mean)
+```
+
+Attention : la simplification dépend de la structure des résultats. Elle peut produire un vecteur ou une matrice selon les circonstances.
+
+## 3.3. `vapply()` : contrôler le type du résultat
+
+`vapply()` permet de spécifier explicitement le type de résultat attendu.
+
+```{r}
+vapply(
+  donnees,
+  mean,
+  FUN.VALUE = numeric(1)
+)
+```
+
+Autre exemple :
+
+```{r}
+vapply(
+  donnees,
+  length,
+  FUN.VALUE = integer(1)
+)
+```
+
+Bonne pratique : privilégier `vapply()` à `sapply()` dans les fonctions de production lorsque la structure du résultat est connue.
+
+## 3.4. `apply()` : travailler sur les lignes et les colonnes
+
+`apply()` permet d'appliquer une fonction aux lignes ou aux colonnes d'une matrice.
+
+```{r}
+matrice <- matrix(
+  1:12,
+  nrow = 3,
+  ncol = 4
+)
+
+# Moyenne par colonne
+apply(matrice, 2, mean)
+
+# Moyenne par ligne
+apply(matrice, 1, mean)
+```
+
+Attention : `apply()` peut convertir un data frame en matrice. Il n'est donc pas toujours adapté aux données contenant plusieurs types de variables.
+
+## 3.5. `Map()` et `mapply()` : plusieurs arguments
+
+`Map()` applique une fonction à plusieurs vecteurs ou listes en parallèle.
+
+```{r}
+noms <- c("A", "B", "C")
+effectifs <- c(100, 200, 300)
+
+Map(
+  function(nom, effectif) {
+    paste(nom, effectif)
+  },
+  noms,
+  effectifs
+)
+```
+
+`Map()` retourne une liste.
+
+`mapply()` propose une fonctionnalité similaire avec simplification du résultat.
+
+```{r}
+mapply(
+  function(x, y) x * y,
+  c(1, 2, 3),
+  c(10, 20, 30)
+)
+```
+
+## 3.6. `rapply()` : itération récursive
+
+`rapply()` permet d'appliquer une fonction aux éléments d'une liste imbriquée.
+
+```{r}
+donnees <- list(
+  groupe_A = list(
+    x = 10,
+    y = 20
+  ),
+  groupe_B = list(
+    x = 30,
+    y = 40
+  )
+)
+
+rapply(
+  donnees,
+  function(x) x * 2,
+  how = "replace"
+)
+```
+
+Cette fonction est utile pour travailler avec des structures de listes complexes.
+
+## 3.7. `eapply()` : itérer sur un environnement
+
+Un environnement contient des objets nommés.
+
+```{r}
+env <- new.env()
+
+env$a <- 10
+env$b <- 20
+env$c <- 30
+
+eapply(env, function(x) x * 2)
+```
+
+`eapply()` applique une fonction aux objets présents dans un environnement.
+
+# 4. Base R : filtrage, recherche et agrégation
+
+## 4.1. `Filter()` : sélectionner des éléments
+
+`Filter()` conserve les éléments qui satisfont une condition.
+
+```{r}
+valeurs <- list(
+  A = 1:3,
+  B = 1:10,
+  C = 1:5
+)
+
+Filter(
+  function(x) length(x) > 5,
+  valeurs
+)
+```
+
+## 4.2. `Find()` : trouver le premier élément
+
+```{r}
+Find(
+  function(x) length(x) > 5,
+  valeurs
+)
+```
+
+`Find()` retourne le premier élément satisfaisant la condition.
+
+## 4.3. `Position()` : trouver sa position
+
+```{r}
+Position(
+  function(x) length(x) > 5,
+  valeurs
+)
+```
+
+Résultat : `2`.
+
+## 4.4. `Negate()` : inverser une fonction logique
+
+```{r}
+is_not_null <- Negate(is.null)
+
+liste <- list(
+  A = 10,
+  B = NULL,
+  C = 20
+)
+
+Filter(is_not_null, liste)
+```
+
+## 4.5. `Reduce()` : réduire une séquence
+
+`Reduce()` applique successivement une fonction aux éléments d'une séquence.
+
+```{r}
+valeurs <- c(10, 20, 30, 40)
+
+Reduce(`+`, valeurs)
+```
+
+Résultat : `100`.
+
+Exemple avec une liste :
+
+```{r}
+liste <- list(
+  c(1, 2),
+  c(3, 4),
+  c(5, 6)
+)
+
+Reduce(c, liste)
+```
+
+On peut également définir une valeur initiale avec `init`.
+
+```{r}
+Reduce(
+  `+`,
+  c(10, 20, 30),
+  init = 100
+)
+```
+
+# 5. Base R : `do.call()` et les appels dynamiques
+
+## 5.1. `do.call()` : appeler une fonction à partir d'une liste
+
+`do.call()` permet d'exécuter une fonction en lui transmettant une liste d'arguments.
+
+Syntaxe :
+
+``` r
+do.call(FUN, args)
+```
+
+Exemple :
+
+```{r}
+parametres <- list(
+  x = c(10, 20, 30),
+  na.rm = TRUE
+)
+
+do.call(mean, parametres)
+```
+
+C'est équivalent à :
+
+``` r
+mean(
+  x = c(10, 20, 30),
+  na.rm = TRUE
+)
+```
+
+## 5.2. Utiliser `do.call()` pour combiner des datasets
+
+```{r}
+liste <- list(
+  data.frame(id = 1:2, valeur = 10:11),
+  data.frame(id = 3:4, valeur = 12:13),
+  data.frame(id = 5:6, valeur = 14:15)
+)
+
+do.call(rbind, liste)
+```
+
+Cette approche est particulièrement utile lorsque le nombre de datasets n'est pas connu à l'avance.
+
+## 5.3. Différence entre `Reduce()` et `do.call()`
+
+| Fonction    | Principe                                             |
+|-------------|------------------------------------------------------|
+| `Reduce()`  | Applique successivement une fonction à deux éléments |
+| `do.call()` | Appelle une fonction avec une liste d'arguments      |
+
+Exemple :
+
+``` r
+liste <- list(
+  c(1, 2),
+  c(3, 4),
+  c(5, 6)
+)
+
+# Concaténation successive
+Reduce(c, liste)
+
+# Appel unique avec tous les arguments
+do.call(c, liste)
+```
+
+Les deux résultats sont ici identiques, mais les mécanismes sont différents.
+
+# 6. Base R : manipulation des objets et environnements
+
+Ces fonctions permettent de travailler avec des objets dont les noms sont déterminés dynamiquement.
+
+## 6.1. `get()` : récupérer un objet par son nom
+
+```{r}
+salaire <- c(4000, 4500, 5000)
+
+nom_variable <- "salaire"
+
+get(nom_variable)
+```
+
+## 6.2. `assign()` : créer un objet dynamiquement
+
+```{r}
+nom_objet <- "dataset_2025"
+
+assign(
+  nom_objet,
+  data.frame(id = 1:3, valeur = 10:12)
+)
+
+dataset_2025
+```
+
+## 6.3. `mget()` : récupérer plusieurs objets
+
+```{r}
+a <- 10
+b <- 20
+c <- 30
+
+mget(c("a", "b", "c"))
+```
+
+## 6.4. `exists()` : vérifier l'existence d'un objet
+
+```{r}
+exists("dataset_2025")
+exists("dataset_2030")
+```
+
+## 6.5. `ls()` et `rm()`
+
+``` r
+# Lister les objets de l'environnement
+ls()
+
+# Supprimer un objet
+rm(dataset_2025)
+```
+
+Bonne pratique : pour des objets liés entre eux, préférer une liste nommée plutôt que de multiplier les objets créés avec `assign()` dans l'environnement global.
+
+# 7. Base R : évaluation des expressions et métaprogrammation
+
+La métaprogrammation consiste à manipuler des expressions ou des appels de fonctions comme des objets.
+
+Elle est particulièrement utile pour construire des fonctions génériques et des interfaces programmatiques.
+
+## 7.1. `substitute()` : capturer une expression
+
+```{r}
+ma_fonction <- function(x) {
+  substitute(x)
+}
+
+ma_fonction(salaire + 100)
+```
+
+La fonction retourne l'expression sans l'évaluer.
+
+## 7.2. `deparse()` : transformer une expression en texte
+
+```{r}
+expression <- substitute(salaire + 100)
+
+deparse(expression)
+```
+
+## 7.3. `force()` : évaluer un argument immédiatement
+
+R utilise une évaluation paresseuse (*lazy evaluation*).
+
+`force()` permet de déclencher explicitement l'évaluation d'un argument.
+
+```{r}
+creer_fonction <- function(x) {
+
+  force(x)
+
+  function() {
+    x
+  }
+}
+
+f <- creer_fonction(100)
+
+f()
+```
+
+## 7.4. `Recall()` : récursivité
+
+`Recall()` permet de rappeler la fonction courante sans devoir répéter son nom.
+
+```{r}
+factorielle <- function(n) {
+
+  if (n <= 1) {
+    return(1)
+  }
+
+  n * Recall(n - 1)
+}
+
+factorielle(5)
+```
+
+Résultat : `120`.
+
+## 7.5. `invisible()` : retourner sans afficher
+
+`invisible()` permet de retourner un résultat sans déclencher son affichage automatique.
+
+```{r}
+ma_fonction <- function(x) {
+
+  resultat <- x * 2
+
+  invisible(resultat)
+}
+
+valeur <- ma_fonction(10)
+
+valeur
+```
+
+Cette fonction est notamment utilisée dans les fonctions qui réalisent des opérations techniques, comme l'écriture de fichiers.
+
+Exemple :
+
+```{r}
+exporter <- function(data, fichier) {
+
+  write.csv(
+    data,
+    fichier,
+    row.names = FALSE
+  )
+
+  invisible(fichier)
+}
+```
+
+# 8. purrr : programmation fonctionnelle dans le tidyverse
+
+`purrr` appartient à l'écosystème tidyverse.
+
+Il propose une interface cohérente pour appliquer des fonctions à des listes et à plusieurs arguments.
+
+Installation :
+
+```{r}
+# install.packages("purrr")
+library(purrr)
+```
+
+Il est possible d'utiliser `purrr` sans adopter `dplyr`, `tibble` ou les autres packages tidyverse.
+
+## 8.1. `map()` : équivalent de `lapply()`
+
+```{r}
+donnees <- list(
+  A = c(10, 20, 30),
+  B = c(15, 25, 35),
+  C = c(20, 30, 40)
+)
+
+map(donnees, mean)
+```
+
+## 8.2. Les variantes de `map()`
+
+| Fonction    | Type de résultat  |
+|-------------|-------------------|
+| `map()`     | Liste             |
+| `map_lgl()` | Logique           |
+| `map_int()` | Entier            |
+| `map_dbl()` | Numérique         |
+| `map_chr()` | Caractères        |
+| `map_vec()` | Vecteur simplifié |
+
+Exemples :
+
+```{r}
+map_dbl(donnees, mean)
+
+map_int(donnees, length)
+
+map_chr(donnees, \(x) paste0("N = ", length(x)))
+
+map_lgl(donnees, \(x) mean(x) > 20)
+```
+
+## 8.3. `map2()` : deux arguments
+
+```{r}
+noms <- c("A", "B", "C")
+effectifs <- c(100, 200, 300)
+
+map2(
+  noms,
+  effectifs,
+  \(nom, n) paste(nom, n)
+)
+```
+
+## 8.4. `pmap()` : plusieurs arguments
+
+```{r}
+parametres <- list(
+  nom = c("A", "B", "C"),
+  effectif = c(100, 200, 300),
+  taux = c(0.10, 0.15, 0.20)
+)
+
+pmap(
+  parametres,
+  \(nom, effectif, taux) {
+    data.frame(
+      groupe = nom,
+      resultat = effectif * taux
+    )
+  }
+)
+```
+
+## 8.5. `imap()` : accéder aux noms et aux indices
+
+```{r}
+donnees <- list(
+  hommes = c(100, 120, 130),
+  femmes = c(110, 125, 140)
+)
+
+imap(
+  donnees,
+  \(x, nom) {
+    data.frame(
+      groupe = nom,
+      moyenne = mean(x)
+    )
+  }
+)
+```
+
+## 8.6. `walk()` : exécuter une opération sans collecter de résultat
+
+`walk()` est particulièrement utile pour les opérations d'écriture ou d'affichage.
+
+```{r}
+fichiers <- c("A.csv", "B.csv", "C.csv")
+
+walk(
+  fichiers,
+  \(fichier) cat("Traitement :", fichier, "\n")
+)
+```
+
+Exemple d'exportation :
+
+```{r}
+resultats <- list(
+  A = data.frame(id = 1:3, valeur = 10:12),
+  B = data.frame(id = 1:3, valeur = 20:22)
+)
+
+walk2(
+  resultats,
+  names(resultats),
+  \(data, nom) {
+    write.csv(
+      data,
+      paste0(nom, ".csv"),
+      row.names = FALSE
+    )
+  }
+)
+```
+
+## 8.7. `keep()` et `discard()`
+
+```{r}
+valeurs <- list(
+  A = 1:3,
+  B = 1:10,
+  C = 1:5
+)
+
+keep(valeurs, \(x) length(x) > 5)
+
+discard(valeurs, \(x) length(x) > 5)
+```
+
+## 8.8. `compact()`
+
+Supprime les éléments `NULL`.
+
+```{r}
+liste <- list(
+  A = 10,
+  B = NULL,
+  C = 20
+)
+
+compact(liste)
+```
+
+## 8.9. `reduce()` et `accumulate()`
+
+```{r}
+valeurs <- c(10, 20, 30, 40)
+
+reduce(valeurs, `+`)
+
+accumulate(valeurs, `+`)
+```
+
+`reduce()` retourne le résultat final, tandis que `accumulate()` conserve les résultats intermédiaires.
+
+## 8.10. Gestion des erreurs : `possibly()`, `safely()` et `quietly()`
+
+### possibly()
+
+```{r}
+division <- function(x) {
+  10 / x
+}
+
+division_securisee <- possibly(
+  division,
+  otherwise = NA_real_
+)
+
+map_dbl(
+  list(2, 5, 0, 10),
+  division_securisee
+)
+```
+
+### safely()
+
+```{r}
+division_securisee <- safely(division)
+
+resultats <- map(
+  list(2, 5, 0, 10),
+  division_securisee
+)
+
+map(resultats, "result")
+map(resultats, "error")
+```
+
+### quietly()
+
+```{r}
+fonction_message <- function(x) {
+  message("Traitement en cours")
+  warning("Vérification nécessaire")
+  x * 2
+}
+
+resultat <- quietly(fonction_message)(10)
+
+resultat$result
+resultat$messages
+resultat$warnings
+```
+
+## 8.11. `compose()` : composer des fonctions
+
+```{r}
+normaliser <- function(x) {
+  x / max(x)
+}
+
+arrondir <- function(x) {
+  round(x, 2)
+}
+
+fonction <- compose(
+  arrondir,
+  normaliser
+)
+
+fonction(c(10, 20, 30, 40))
+```
+
+Les fonctions sont appliquées de droite à gauche.
+
+# 9. data.table : programmation fonctionnelle appliquée aux données
+
+`data.table` est principalement un package de manipulation de données, mais il s'intègre parfaitement à une approche fonctionnelle.
+
+Il est particulièrement adapté aux grands volumes de données et aux traitements statistiques répétitifs.
+
+Installation :
+
+```{r}
+# install.packages("data.table")
+library(data.table)
+```
+
+## 9.1. Créer une fonction qui manipule un data.table
+
+```{r}
+calculer_indicateurs <- function(DT) {
+
+  DT[, .(
+    effectif = .N,
+    salaire_moyen = mean(salaire, na.rm = TRUE),
+    salaire_median = median(salaire, na.rm = TRUE)
+  )]
+}
+
+DT <- data.table(
+  id = 1:5,
+  salaire = c(4000, 4500, 5000, 5500, 6000)
+)
+
+calculer_indicateurs(DT)
+```
+
+## 9.2. Passer le nom d'une variable comme argument
+
+Avec `data.table`, `get()` permet d'accéder à une colonne dont le nom est fourni sous forme de chaîne de caractères.
+
+```{r}
+calculer_moyenne <- function(DT, variable) {
+
+  DT[, mean(get(variable), na.rm = TRUE)]
+}
+
+calculer_moyenne(DT, "salaire")
+```
+
+Pour créer une colonne dont le nom est dynamique :
+
+```{r}
+creer_variable <- function(DT, variable, nouveau_nom) {
+
+  DT[, (nouveau_nom) := get(variable) + 1]
+
+  invisible(DT)
+}
+
+DT_test <- copy(DT)
+
+creer_variable(
+  DT_test,
+  "salaire",
+  "salaire_ajuste"
+)
+
+DT_test
+```
+
+Attention : `:=` modifie le `data.table` par référence. Si l'on souhaite conserver l'objet original, utiliser `copy()`.
+
+## 9.3. Utiliser `lapply()` dans `data.table`
+
+`data.table` accepte directement `lapply()` dans les opérations de colonnes.
+
+```{r}
+DT <- data.table(
+  sexe = c("H", "F", "H", "F"),
+  salaire = c(4000, 4500, 5000, 5500),
+  age = c(25, 30, 35, 40)
+)
+
+DT[, lapply(.SD, mean), .SDcols = c("salaire", "age")]
+```
+
+Calculer plusieurs statistiques :
+
+```{r}
+DT[, lapply(.SD, \(x) mean(x, na.rm = TRUE)),
+   by = sexe,
+   .SDcols = c("salaire", "age")]
+```
+
+## 9.4. Appliquer plusieurs fonctions à plusieurs colonnes
+
+```{r}
+
+fonctions <- list(
+  moyenne = mean,
+  minimum = min,
+  maximum = max
+)
+
+DT[, {
+  resultat <- list()
+
+  for (variable in names(.SD)) {
+    for (stat in names(fonctions)) {
+
+      resultat[[paste(variable, stat, sep = "_")]] <-
+        fonctions[[stat]](.SD[[variable]], na.rm = TRUE)
+
+    }
+  }
+
+  resultat
+},
+by = sexe,
+.SDcols = c("salaire", "age")]
+```
+
+Cette approche permet de construire des tableaux statistiques de manière très compacte.
+
+## 9.5. `set()` : modifier des colonnes efficacement
+
+`set()` permet de modifier une colonne sans passer par une évaluation classique de `:=`.
+
+```{r}
+DT <- data.table(
+  id = 1:4,
+  salaire = c(4000, 4500, 5000, 5500)
+)
+
+set(
+  DT,
+  j = "salaire_ajuste",
+  value = DT$salaire * 1.05
+)
+
+DT
+```
+
+## 9.6. `setnames()` : modifier les noms des colonnes
+
+```{r}
+setnames(
+  DT,
+  old = "salaire",
+  new = "revenu"
+)
+
+DT
+```
+
+## 9.7. `setorder()` : trier un data.table
+
+```{r}
+setorder(DT, -revenu)
+
+DT
+```
+
+## 9.8. `rbindlist()` : combiner plusieurs datasets
+
+`rbindlist()` est une fonction essentielle pour la production statistique.
+
+```{r}
+liste <- list(
+  data.table(annee = 2022, id = 1:3, valeur = 10:12),
+  data.table(annee = 2023, id = 1:3, valeur = 20:22),
+  data.table(annee = 2024, id = 1:3, valeur = 30:32)
+)
+
+resultat <- rbindlist(liste)
+
+resultat
+```
+
+Pour combiner des tables dont les colonnes diffèrent :
+
+```{r}
+liste <- list(
+  data.table(id = 1:2, sexe = c("H", "F")),
+  data.table(id = 3:4, age = c(25, 30))
+)
+
+rbindlist(
+  liste,
+  fill = TRUE
+)
+```
+
+## 9.9. `copy()` : éviter les modifications par référence
+
+```{r}
+DT_original <- data.table(
+  id = 1:3,
+  valeur = c(10, 20, 30)
+)
+
+DT_copie <- copy(DT_original)
+
+DT_copie[, valeur := valeur * 2]
+
+DT_original
+DT_copie
+```
+
+`copy()` est important pour contrôler les effets secondaires des fonctions qui modifient les objets.
+
+# 10. Combiner base R, purrr et data.table
+
+Les trois environnements peuvent être utilisés ensemble.
+
+La séparation des responsabilités est fondamentale :
+
+- `purrr` ou base R organisent les itérations ;
+- les fonctions personnalisées définissent les traitements ;
+- `data.table` effectue les opérations sur les données.
+
+## 10.1. Exemple : plusieurs datasets annuels
+
+Créons trois datasets :
+
+```{r}
+DT_list <- list(
+  "2022" = data.table(
+    id = 1:5,
+    sexe = c("H", "F", "H", "F", "H"),
+    salaire = c(4000, 4200, 4500, 4700, 5000)
+  ),
+  "2023" = data.table(
+    id = 1:5,
+    sexe = c("H", "F", "H", "F", "H"),
+    salaire = c(4200, 4400, 4600, 4800, 5200)
+  ),
+  "2024" = data.table(
+    id = 1:5,
+    sexe = c("H", "F", "H", "F", "H"),
+    salaire = c(4300, 4500, 4800, 5000, 5400)
+  )
+)
+```
+
+## 10.2. Définir une fonction métier
+
+```{r}
+traiter_annee <- function(DT, annee) {
+
+  annee <- as.integer(annee)
+
+  DT[, .(
+    annee = annee,
+    effectif = as.integer(.N),
+    salaire_moyen = as.double(mean(salaire, na.rm = TRUE)),
+    salaire_median = as.double(median(salaire, na.rm = TRUE))
+  ), by = sexe]
+}
+```
+
+Cette fonction ne connaît pas le nombre d'années à traiter.
+
+## 10.3. Utiliser `Map()` de base R
+
+```{r}
+resultats <- Map(
+  traiter_annee,
+  DT_list,
+  names(DT_list)
+)
+
+resultat_final <- rbindlist(resultats)
+
+resultat_final
+```
+
+## 10.4. Utiliser `imap()` de purrr
+
+Le même traitement peut être réalisé avec `purrr`.
+
+```{r}
+resultats <- imap(
+  DT_list,
+  traiter_annee
+)
+
+resultat_final <- rbindlist(resultats)
+
+resultat_final
+```
+
+Les deux solutions sont correctes.
+
+## 10.5. Comparaison
+
+| Élément | Base R | purrr | data.table |
+|------------------|------------------|------------------|------------------|
+| Itération sur plusieurs années | `Map()` | `imap()` | Pas son rôle principal |
+| Application d'une fonction | `lapply()` | `map()` | `lapply(.SD, ...)` |
+| Calcul statistique | `mean()` | Transmission de fonctions | `DT[, .()]` |
+| Agrégation | `aggregate()` | Pas son rôle principal | `DT[, .(), by=]` |
+| Combinaison de tables | `rbind()` / `do.call()` | `list_rbind()` | `rbindlist()` |
+| Modification par référence | Non | Non | `:=`, `set()` |
+
+# 11. Exemple de production : traitement automatisé de fichiers annuels
+
+Cet exemple illustre une architecture possible pour une production statistique.
+
+## 11.1. Créer les fichiers de démonstration
+
+```{r}
+dir.create(
+  "data",
+  showWarnings = FALSE
+)
+
+donnees <- list(
+  annee_2022 = data.table(
+    id = 1:5,
+    sexe = c("H", "F", "H", "F", "H"),
+    salaire = c(4000, 4200, 4500, 4700, 5000)
+  ),
+  annee_2023 = data.table(
+    id = 1:5,
+    sexe = c("H", "F", "H", "F", "H"),
+    salaire = c(4200, 4400, 4600, 4800, 5200)
+  ),
+  annee_2024 = data.table(
+    id = 1:5,
+    sexe = c("H", "F", "H", "F", "H"),
+    salaire = c(4300, 4500, 4800, 5000, 5400)
+  )
+)
+
+walk2(
+  donnees,
+  names(donnees),
+  \(DT, nom) {
+    fwrite(DT, paste0("data/", nom, ".csv"))
+  }
+)
+```
+
+## 11.2. Identifier les fichiers
+
+```{r}
+fichiers <- list.files(
+  "data",
+  pattern = "\\.csv$",
+  full.names = TRUE
+)
+
+fichiers
+```
+
+## 11.3. Importer les fichiers
+
+Avec base R :
+
+```{r}
+liste_DT <- lapply(
+  fichiers,
+  fread
+)
+```
+
+Ou avec purrr :
+
+```{r}
+liste_DT <- map(
+  fichiers,
+  fread
+)
+```
+
+## 11.4. Extraire les années
+
+```{r}
+annees <- sub(
+  ".*annee_([0-9]{4})\\.csv$",
+  "\\1",
+  fichiers
+)
+
+names(liste_DT) <- annees
+```
+
+## 11.5. Appliquer le traitement
+
+```{r}
+resultats <- Map(
+  function(DT, anno) {
+    message("\nTraitement de l'année : ", anno)
+
+    tryCatch(
+      traiter_annee(DT, anno),
+      error = function(e) {
+        message("Erreur pour l'année ", anno)
+        stop(e)
+      }
+    )
+  },
+  liste_DT,
+  names(liste_DT)
+)
+
+resultat_final <- rbindlist(resultats)
+```
+
+## 11.6. Exporter le résultat
+
+```{r}
+fwrite(
+  resultat_final,
+  "resultats_annuels.csv"
+)
+```
+
+Cette architecture sépare clairement :
+
+1.  L'identification des fichiers.
+2.  L'importation.
+3.  La logique métier.
+4.  L'itération.
+5.  La consolidation.
+6.  L'exportation.
+
+# 12. Tableau général des fonctions à connaître
+
+## 12.1. Base R
+
+| Fonction       | Utilisation                                     |
+|----------------|-------------------------------------------------|
+| `function()`   | Définir une fonction                            |
+| `lapply()`     | Itérer sur une liste                            |
+| `sapply()`     | Itérer avec simplification                      |
+| `vapply()`     | Itérer avec contrôle du type                    |
+| `apply()`      | Itérer sur les lignes ou colonnes               |
+| `Map()`        | Itérer sur plusieurs arguments                  |
+| `mapply()`     | Itération multiple avec simplification          |
+| `rapply()`     | Itération récursive                             |
+| `eapply()`     | Itération sur un environnement                  |
+| `Filter()`     | Filtrer des éléments                            |
+| `Find()`       | Trouver le premier élément                      |
+| `Position()`   | Trouver la position                             |
+| `Negate()`     | Inverser une fonction logique                   |
+| `Reduce()`     | Réduire une séquence                            |
+| `do.call()`    | Appeler une fonction avec une liste d'arguments |
+| `match.fun()`  | Résoudre une fonction                           |
+| `Recall()`     | Récursivité                                     |
+| `get()`        | Récupérer un objet par son nom                  |
+| `assign()`     | Créer un objet dynamiquement                    |
+| `mget()`       | Récupérer plusieurs objets                      |
+| `exists()`     | Vérifier l'existence d'un objet                 |
+| `substitute()` | Capturer une expression                         |
+| `deparse()`    | Transformer une expression en texte             |
+| `force()`      | Évaluer immédiatement un argument               |
+| `invisible()`  | Retourner sans affichage automatique            |
+
+## 12.2. purrr
+
+| Fonction       | Utilisation                                   |
+|----------------|-----------------------------------------------|
+| `map()`        | Itérer sur une liste                          |
+| `map_lgl()`    | Résultat logique                              |
+| `map_int()`    | Résultat entier                               |
+| `map_dbl()`    | Résultat numérique                            |
+| `map_chr()`    | Résultat texte                                |
+| `map2()`       | Itérer sur deux arguments                     |
+| `pmap()`       | Itérer sur plusieurs arguments                |
+| `imap()`       | Itérer avec les noms ou indices               |
+| `walk()`       | Exécuter sans collecter de résultat           |
+| `keep()`       | Conserver des éléments                        |
+| `discard()`    | Écarter des éléments                          |
+| `compact()`    | Supprimer les éléments NULL                   |
+| `reduce()`     | Réduire une liste                             |
+| `accumulate()` | Conserver les résultats intermédiaires        |
+| `possibly()`   | Gérer les erreurs avec une valeur alternative |
+| `safely()`     | Capturer les erreurs                          |
+| `quietly()`    | Capturer les messages et avertissements       |
+| `compose()`    | Composer plusieurs fonctions                  |
+| `list_rbind()` | Combiner des tables en lignes                 |
+
+## 12.3. data.table
+
+| Fonction      | Utilisation                            |
+|---------------|----------------------------------------|
+| `fread()`     | Importer des fichiers                  |
+| `fwrite()`    | Exporter des fichiers                  |
+| `:=`          | Créer ou modifier des colonnes         |
+| `.SD`         | Sous-ensemble de données               |
+| `.SDcols`     | Sélectionner des colonnes pour `.SD`   |
+| `.N`          | Nombre d'observations                  |
+| `set()`       | Modifier efficacement une table        |
+| `setnames()`  | Modifier les noms des colonnes         |
+| `setorder()`  | Trier une table                        |
+| `setkey()`    | Définir une clé                        |
+| `copy()`      | Copier un data.table                   |
+| `rbindlist()` | Combiner plusieurs tables              |
+| `shift()`     | Décaler des valeurs                    |
+| `CJ()`        | Créer un produit cartésien             |
+| `foverlaps()` | Réaliser des jointures par intervalles |
+
+# 13. Recommandations pour un environnement de production
+
+Pour une organisation qui utilise des données administratives, des traitements annuels et des fichiers longitudinaux, je recommande une architecture qui sépare les responsabilités.
+
+| Niveau | Outils privilégiés | Responsabilité |
+|------------------------|------------------------|------------------------|
+| Programmation fonctionnelle | Base R | Fonctions génériques et itération |
+| Orchestration | Base R / purrr | Exécution des traitements |
+| Manipulation des données | data.table | Filtrage, agrégation, jointures |
+| Importation et exportation | data.table | Lecture et écriture |
+| Contrôle qualité | Base R / data.table | Vérifications et validation |
+| Gestion du pipeline | targets | Dépendances et exécution |
+
+Quelques principes importants :
+
+1.  Une fonction doit avoir une responsabilité clairement définie.
+2.  Les traitements métier doivent être séparés de l'importation et de l'exportation.
+3.  Les fonctions doivent recevoir explicitement leurs arguments.
+4.  Les fonctions qui modifient un `data.table` par référence doivent être documentées.
+5.  Les résultats doivent avoir des types et des structures prévisibles.
+6.  Les erreurs doivent être identifiées et enregistrées.
+7.  Les traitements annuels doivent être réutilisables sans duplication du code.
+
+**Il n'est pas nécessaire d'utiliser systématiquement purrr.** Base R fournit déjà les outils fondamentaux. purrr apporte une syntaxe cohérente et des fonctionnalités supplémentaires. data.table reste le moteur de manipulation des données.
+
+# 14. Ressources complémentaires
+
+- [R Documentation – Base](https://stat.ethz.ch/R-manual/R-devel/library/base/html/)
+- [Advanced R – Functional programming](https://adv-r.hadley.nz/functionals.html)
+- [purrr – Documentation officielle](https://purrr.tidyverse.org/)
+- [data.table – Documentation officielle](https://rdatatable.gitlab.io/data.table/)
+- [R for Data Science – Iteration](https://r4ds.hadley.nz/iteration.html)
